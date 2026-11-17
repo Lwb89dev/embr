@@ -1,0 +1,12 @@
+# Keep bytes exactly as committed where checksums or shell parsing depend on them.
+* text=auto
+# Official test vectors are pinned by SHA-256 (e.g. NIP-44): never let git convert line endings.
+tests/vectors/** -text
+tests/interop/package-lock.json -text
+# Scripts and packaging files must stay LF on every platform.
+*.sh text eol=lf
+*.py text eol=lf
+*.service text eol=lf
+*.install text eol=lf
+PKGBUILD text eol=lf
+*.png binary
