@@ -1,8 +1,8 @@
 # Threat model
 
-*Status: Milestone 1 — written before the IPC and daemon exist. Items marked **(implemented)** are
-covered by code and tests in this repository today; everything else is a design requirement that the
-corresponding milestone must satisfy and test. Nothing here is a security guarantee of a released
+*Status: updated at Milestone 3. Items marked **(implemented)** are covered by code and tests in this
+repository today (see `SECURITY.md` for the test names); everything else is a design requirement that
+the corresponding milestone must satisfy and test. Nothing here is a security guarantee of a released
 product: Embr has had no independent review.*
 
 ## 1. What we protect
@@ -52,7 +52,7 @@ product: Embr has had no independent review.*
   current user's SID and `PIPE_REJECT_REMOTE_CLIENTS` — *design, M3*.
 
 ### A3 — buggy/over-eager apps (**primary design target of the local protocol**)
-Requirements (M3; each gets a test):
+Requirements — **all implemented and tested in Milestone 3** except where noted:
 * **Default deny.** An unpaired client can do nothing except pair; a paired client can do only what
   was granted: *account × client × operation × event kind × optional recipient × expiry/use limit*.
 * **Decrypt ≠ sign.** `nip44_decrypt`/`nip04_decrypt` are separate operations with separate
@@ -69,10 +69,11 @@ Requirements (M3; each gets a test):
   (**implemented/tested**).
 * **Resource exhaustion.** 1 MiB line limit, per-field limits (**implemented** in `embr-crypto::Limits`),
   per-client and global pending-queue caps, per-client rate limiting, handshake timeout, bounded
-  buffers, request expiry (M3, plus fuzzing in M7).
+  buffers, request expiry (**implemented**; fuzzing is still M7).
 * **Replay / substitution.** Per-connection server nonce in the authenticated hello; request ids are
   unique per session; responses are matched by id (M3).
-* **Account switching.** Only the trusted UI channel can change the active account (M3).
+* **Account switching.** Only the control channel (password-authenticated) can change the active
+  account, and it never retargets a pending request (**implemented**).
 
 ### A4 — same-user malware (**the hard case — read carefully**)
 A desktop OS gives every process of the same user broad powers. Embr **raises the bar** but cannot

@@ -1,8 +1,16 @@
 # Embr Local Signer API — protocol draft v1
 
-> **Status: DRAFT SPECIFICATION — not implemented yet** (Milestone 3). Nothing in this file is
-> available to try; it exists so that clients such as OUTKAST, Echoes or Mialuna can review the
-> contract before the daemon is built. Breaking changes are expected until `1.0`.
+> **Status: protocol v1 — implemented in `embrd` on Linux/macOS (Unix sockets), tested on Linux.**
+> Windows (named pipes) and spawn-bound clients are **not implemented yet**. The wire format may
+> still change before `1.0`. Reference implementation: `crates/embr-ipc` (types, framing, proof),
+> `apps/embrd` (server), `crates/embr-client` (blocking Rust SDK; example in
+> `crates/embr-client/examples/login_and_sign.rs`). The privileged channel used by the GUI/CLI is a
+> different socket, described in `CONTROL_API.md`.
+>
+> *Differences between the original draft and the implementation:* `list_accounts` also returns
+> `npub`; error code 14 `busy` was added; the `account` selector of an **unpaired** client is
+> ignored (the user chooses the account, and the client learns nothing about the vault); a paired
+> client calling `connect` again gets its pairing back without a prompt.
 >
 > This is **not NIP-55** (an Android-only intent/ContentProvider protocol) and **not NIP-46**
 > (relay-based remote signing). It is a desktop-local protocol; its framing and method names are
@@ -150,8 +158,12 @@ operation × event kind × optional peer/recipient × expiry/use-count**. Rules 
 4. Call methods; match responses by `id`; handle `vault_locked`, `denied`, `expired`.
 5. Never log the client secret, plaintexts or signatures you did not ask for.
 
-A reference Rust client (`embr-client`) and an example app (`examples/native-client`) land with
-Milestone 3; a Python and a shell (`socat`-based) walkthrough will accompany them.
+The Rust SDK (`embr-client`) does steps 1–4 for you; see
+`crates/embr-client/examples/login_and_sign.rs` for a complete app. For other languages implement the
+handshake yourself: it needs only line-delimited JSON over a Unix socket and one BIP-340 signature
+(use any Nostr library to sign the proof *event* of kind `27183` with tags
+`["embr_nonce", <nonce>]` and `["embr_proto","1"]`, empty content, current `created_at`).
+A Python and a shell walkthrough are still to be written.
 
 ## 9. Open questions (feedback welcome)
 * Provide a compatibility mode that accepts the NIP-5F-draft hello (`{"client":"nak"}`) as an

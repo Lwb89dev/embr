@@ -34,7 +34,9 @@ or a hosted service. Two ways in:
 * **`embrd` is the only process that ever holds decrypted key material.** It runs as the user (never
   root), as a user-level service where available, and keeps serving previously authorised
   requests while the GUI is closed.
-* **The GUI and CLI are thin clients of the control channel.** They never receive keys; the
+* **The GUI and CLI are thin clients of the control channel**, which needs the **vault password** (or a
+  control token issued after it, kept in memory only and invalidated by every lock) — so a GUI restart
+  while the daemon stays unlocked re-attaches with the token, and a stolen socket path is useless. They never receive keys; the
   frontend state contains public information and request metadata only.
 * **Client API and control channel are different endpoints with different credentials.** A client
   cannot approve its own request, and a spoofed "approve" arriving on the client API is just an
@@ -52,15 +54,17 @@ separation of concerns.
 
 | Crate | Responsibility | Status |
 |---|---|---|
-| `embr-core` | Platform-independent vocabulary: `AccountId`, `Operation`, `KeySecurity`, `AccountMeta`. No crypto, no I/O. | **[built]** 5 tests |
+| `embr-core` | Platform-independent vocabulary: `AccountId`, `Pubkey32`, `Operation`, `KeySecurity`, `AccountMeta`, safe-text rendering (`display::sanitize`). No crypto, no I/O. | **[built]** 10 tests |
 | `embr-crypto` | `Identity` (owns a secret key); NIP-01 signing with strict templates; NIP-44; NIP-04 (legacy); NIP-19; NIP-49; limits. Thin wrapper over `rust-nostr`; **no custom primitives**. | **[built]** 27 tests + interop |
-| `embr-vault` | Encrypted multi-account vault; backup/restore; password change; step-up exports. | **[built]** 32 tests |
-| `embr-policy` | Permission engine: default-deny, scoped grants, expiry, usage limits, decisions, audit records. Pure logic, no I/O. | **[next]** |
-| `embr-ipc` | Local protocol (see `LOCAL_SIGNER_API.md`): framing, handshake, proof-of-possession, request/response types, rate limiting; transports for Unix sockets and Named Pipes. | **[next]** |
-| `embr-platform` | The only crate allowed `unsafe`: peer credentials, ACLs, `mlock`, rlimits, keyring, autostart, notifications. | **[planned]** |
+| `embr-vault` | Encrypted multi-account vault; backup/restore; password change; step-up exports; encrypted application blobs (policy, settings). | **[built]** 35 tests |
+| `embr-policy` | Permission engine: default-deny, scoped grants (account × client × operation × kind × peer), expiry, session scope, use limits, rate limiter, audit record types. Pure logic. | **[built]** 24 tests |
+| `embr-ipc` | Wire protocol: framing with size limit, handshake, client proof of possession (signed event), request/response types, error codes, control-channel types. No I/O. | **[built]** 21 tests |
+| `embr-platform` | OS glue: private runtime/data directories, instance lock, process hardening, peer hints. Safe `rustix` wrappers only (no `unsafe` was needed). Unix only so far. | **[built]** 5 tests |
+| `embr-client` | Blocking SDK for third-party Rust apps + control-channel client + client-key file helper. | **[built]**, example app |
 | `embr-nip46` | NIP-46 signer: relay pool, pairing, `connect`, auth challenges, replay protection. | **[planned]** |
-| `embr-client` | Minimal client SDK for third-party Rust apps (+ docs for other languages). | **[planned]** |
-| `apps/embrd`, `apps/embr`, `apps/embrctl` | Daemon, desktop GUI, CLI. | **[planned]** |
+| `apps/embrd` | The daemon: two sockets, policy, approvals queue, audit log, idle auto-lock, throttled unlock. | **[built]** 23 tests (19 e2e) |
+| `apps/embrctl` | CLI + terminal approval UI (`watch`). | **[built]** 1 e2e test |
+| `apps/embr` | Desktop GUI (ADR-3). | **[planned]** |
 
 Workspace lints: `unsafe_code = "forbid"` everywhere (relaxed only in `embr-platform`, each
 `unsafe` block justified), `unwrap/expect/panic/indexing` warnings promoted to errors by CI.
@@ -84,11 +88,14 @@ vault key ──XChaCha20-Poly1305(AAD=all slots)──▶ body = [fmt][len][met
   a hostile file cannot exhaust resources before authentication.
 * NIP-49 `ncryptsec` is used for **interchange** (export/import), exactly as specified (scrypt),
   not for the internal format.
+* **Policy and settings are stored inside the encrypted, authenticated body** (named blobs), not in a
+  side file: malware running as the user cannot grant itself permissions by editing a JSON file; it
+  would need the vault password (tested: `blobs_survive_password_change_and_backup_and_tampering_is_detected`).
 * Versioning/migration: `version` is checked first; an unknown version is refused with
   `UnsupportedVersion` and the file is left untouched. A migration will always write a new file and
   keep the original until the new one is verified.
 
-## 5. Key request lifecycle (local signing) [design]
+## 5. Key request lifecycle (local signing) [built, `apps/embrd`]
 
 1. Client connects → server sends a handshake with a fresh nonce.
 2. Client proves possession of its client key (BIP-340 signature over a domain-separated hash

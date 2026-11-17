@@ -4,8 +4,9 @@
 <p align="center"><b>A native, cross-platform Nostr signer for the desktop.</b><br>
 Your private key stays in one small, encrypted, local process. Apps ask it to sign — they never see the key.</p>
 
-> **Status: pre-alpha, Milestone 2 of 7.** The cryptographic core and the encrypted vault are built
-> and tested. There is **no daemon, no IPC, no GUI, no NIP-46 and no installable package yet.**
+> **Status: pre-alpha, Milestone 3 of 7.** Cryptographic core, encrypted vault, permission engine,
+> signer daemon with authenticated local IPC, client SDK and a terminal control/approval CLI are built
+> and tested on Linux. There is **no GUI, no NIP-46, no Windows support and no installable package yet.**
 > It has **not been audited** — do not trust it with a key you cannot afford to lose.
 > Read [`docs/SECURITY.md`](docs/SECURITY.md) and [`docs/THREAT_MODEL.md`](docs/THREAT_MODEL.md).
 
@@ -28,14 +29,32 @@ off unless you turn it on.
 | Milestone | Scope | State |
 |---|---|---|
 | 1 | Research, threat model, architecture, workspace | **done** (this repo) |
-| 2 | Crypto core, encrypted vault, accounts, import/export, tests | **done** — 66 tests, interop with `nostr-tools`, `cargo-deny` clean |
-| 3 | Daemon, authenticated local IPC, policy engine, SDK, example client | next (protocol drafted: [`docs/LOCAL_SIGNER_API.md`](docs/LOCAL_SIGNER_API.md)) |
+| 2 | Crypto core, encrypted vault, accounts, import/export, tests | **done** — official vectors, interop with `nostr-tools` |
+| 3 | Daemon, authenticated local IPC, policy engine, SDK, example client, CLI | **done on Linux/macOS** — 151 tests incl. 19 end-to-end; Windows named pipes still open |
 | 4 | Desktop GUI, approvals, tray, notifications | planned |
 | 5 | NIP-46 remote signing | planned |
 | 6 | `.deb`, `.rpm`, Arch `PKGBUILD`, Windows installer, macOS `.dmg` (no AppImage) | planned |
 | 7 | Fuzzing, benchmarks, dependency review, release docs | planned |
 
-### Works today (library level)
+### Try it (Linux/macOS, from source)
+```bash
+cargo build --release -p embrd -p embrctl
+target/release/embrd &                      # the signer daemon (user-level, never root)
+target/release/embrctl init                 # create the vault (asks for a password)
+target/release/embrctl accounts add main    # a new identity, generated inside the vault
+cargo run -p embr-client --example login_and_sign &   # a native app asks to log in and sign…
+target/release/embrctl watch                # …and you approve (pairing, signing, encryption) here
+```
+Apps integrate with [`embr-client`](crates/embr-client) (Rust) or the line-delimited JSON
+protocol in [`docs/LOCAL_SIGNER_API.md`](docs/LOCAL_SIGNER_API.md) from any language.
+
+### Works today
+* Local signing for native apps over an authenticated Unix socket: client-key proof of possession,
+  default-deny pairing, per-account / per-client / per-kind permissions (once, session, until, persistent,
+  always reject), revocation, rate limits, safe rendering of what is being signed, audit log (metadata only).
+* Idle auto-lock, immediate lock, throttled unlock, process hardening (no core dumps, non-dumpable).
+
+### Library level
 * Generate / import `nsec` / import hex / import & export NIP-49 `ncryptsec` (spec vector verified).
 * Multi-account vault: Argon2id + XChaCha20-Poly1305, encrypted backup & restore, password change
   with key rotation, step-up re-authentication for exports, auto-lock hooks (`lock()`).
@@ -45,7 +64,7 @@ off unless you turn it on.
 ## Build and test
 ```bash
 # Rust is pinned in rust-toolchain.toml (rustup installs it automatically)
-cargo test --workspace            # 66 tests
+cargo test --workspace            # 151 tests (the e2e suite takes ~30 s)
 cargo clippy --workspace --all-targets -- -D warnings
 cargo deny check                  # licences, advisories, bans, sources
 tests/interop/run.sh              # two-way interop with nostr-tools (needs Node ≥ 20)
@@ -59,7 +78,7 @@ See [`docs/DEVELOPER_GUIDE.md`](docs/DEVELOPER_GUIDE.md) and [`docs/TESTING.md`]
 | [`RESEARCH.md`](docs/RESEARCH.md) | Comparison of Amber, nos2x, Alby, nak, Omostrich, NoorSigner, Notary, rust-nostr; spec findings |
 | [`THREAT_MODEL.md`](docs/THREAT_MODEL.md) | Assets, actors, what is and is not protected |
 | [`ARCHITECTURE.md`](docs/ARCHITECTURE.md) | Process model, crates, vault format, decisions (ADRs) |
-| [`LOCAL_SIGNER_API.md`](docs/LOCAL_SIGNER_API.md) | Draft local protocol for native clients |
+| [`LOCAL_SIGNER_API.md`](docs/LOCAL_SIGNER_API.md) · [`CONTROL_API.md`](docs/CONTROL_API.md) | Local protocol for native apps; privileged channel for GUI/CLI |
 | [`SECURITY.md`](docs/SECURITY.md) | What is tested, known limits, reporting |
 | [`TESTING.md`](docs/TESTING.md) · [`BENCHMARKS.md`](docs/BENCHMARKS.md) | What runs, what was measured |
 | [`NIP46.md`](docs/NIP46.md) · [`INSTALLATION.md`](docs/INSTALLATION.md) · [`PACKAGING.md`](docs/PACKAGING.md) · [`RELEASE.md`](docs/RELEASE.md) | Plans and status for the later milestones |

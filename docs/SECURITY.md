@@ -1,8 +1,9 @@
 # Security
 
 > **Embr has not been independently audited and must not be described as production-ready.**
-> It is pre-alpha software at Milestone 2 of 7: a tested cryptographic core and vault; no daemon,
-> IPC, GUI or NIP-46 yet. Do not put a key you cannot afford to lose into any build of it.
+> It is pre-alpha software at Milestone 3 of 7: a tested cryptographic core and vault, a daemon with
+> authenticated local IPC and a permission engine, a CLI; no GUI or NIP-46 yet, Linux/macOS only.
+> Do not put a key you cannot afford to lose into any build of it.
 
 Read `THREAT_MODEL.md` first: it states what is and is not defended against, especially regarding
 malware running as the same user.
@@ -48,7 +49,50 @@ time mask generation, reached via `nostr → scrypt → pbkdf2 → hmac → dige
 to 0.4.8, which required raising the MSRV to 1.87 (ADR-8). Now: advisories ok, bans ok, licences ok,
 sources ok.
 
+## Implemented and tested in Milestone 3 (daemon, IPC, policy)
+All of these are exercised end to end against a real `embrd` on real sockets
+(`apps/embrd/tests/e2e.rs`, 19 tests, run 3× to check for flakiness), unless noted.
+
+| Property | Test |
+|---|---|
+| Unknown clients can do nothing but `ping` and request pairing; pairing grants nothing by itself | `unknown_clients_can_do_nothing_but_ping_and_pair`, `login_pairing_and_signing_end_to_end` |
+| Handshake: proof signed by another key, **replayed hello**, stale clock, no hello, wrong version are all refused; silent connections are dropped | `handshake_rejects_bad_proofs_replays_and_silence`, `stale_clock_proofs_are_rejected` |
+| Malformed IPC (garbage, unknown fields, bad/duplicate ids, array params, NUL, >1 MiB line) is contained; 5 malformed lines in a row end the connection; the daemon keeps serving others | `malformed_and_hostile_ipc_is_contained` |
+| Control-channel methods do not exist on the client socket; the control socket needs the vault password | same test; `exports_need_the_password_and_clients_cannot_reach_the_control_channel` |
+| Cross-account isolation: a client cannot sign as, or even probe for, an account it was not granted (identical error) | `accounts_and_clients_are_isolated` |
+| A grant to one client/account never applies to another | same |
+| Decrypt is never implied by a signing grant; unscoped persistent decrypt and persistent DM-kind grants are refused (request stays pending) | `decrypt_is_never_implied_by_signing_and_sensitive_grants_are_refused` + `embr-policy` invariant test over all choices |
+| What is approved is what is signed: decisions must echo the digest of the stored request | same |
+| Prompts show sanitised text (bidi overrides, zero-width, controls made visible); ambiguous-id events refused before any prompt | `prompts_show_sanitised_content_and_encryption_works` |
+| Session / timed / persistent grants and *always reject* behave and expire; persistent grants and pairings survive a daemon restart (stored encrypted in the vault) | `grants_session_timed_persistent_and_revoked` |
+| Revocation, blocking (even mid-prompt) | same; `a_blocked_client_cannot_even_connect` |
+| A lock cancels pending requests, wipes policy/tokens/keys from memory, invalidates control tokens and authenticated connections | `locking_cancels_pending_requests_and_blocks_everything` |
+| GUI restart while the daemon stays unlocked; wrong passwords throttled | `gui_restart_while_the_daemon_stays_unlocked` |
+| Idle auto-lock follows **user** activity, not auto-allowed client traffic | `idle_auto_lock_follows_user_activity_not_client_traffic` |
+| Pending caps, per-client rate limit with `retry_after_ms`, request expiry, `cancel`, disconnect cleanup | `rate_limits_pending_caps_expiry_and_cancel` |
+| 8 clients pairing and signing at once, each prompt naming the right account | `many_clients_pair_and_sign_concurrently` |
+| Single instance, stale-socket cleanup, socket `0600`, directories `0700`, SDK refuses a group/world-accessible endpoint directory | `single_instance_stale_sockets_and_permissions` |
+| Audit log holds metadata only (no content, no signatures) | `login_pairing_and_signing_end_to_end`, CLI test |
+| Process hardening of the real binary: `RLIMIT_CORE=0`, `PR_SET_DUMPABLE=0`, `NO_NEW_PRIVS` | `embr-platform` test (checks `/proc`), manual run |
+
+## Findings while building Milestone 3
+* **serde quirks that weaken "strict parsing":** `deny_unknown_fields` is *not* enforced for unit
+  variants of internally tagged enums, and a struct also deserialises from a JSON *array*. Both were
+  caught by tests and fixed (`DecisionRaw` intermediate type; `parse_params` requires an object).
+* **`NO_NEW_PRIVS` is per-thread.** Applied after the async runtime started, worker threads would not
+  have it. The binary now hardens in `main()` before any thread exists; the test reads
+  `/proc/thread-self/status`.
+* **Event-forwarder lifetime:** a subscribed control connection leaked its writer task after the
+  client left, and could drop the `locked` notification in a race. Fixed with a per-connection
+  cancellation token and an epoch check.
+* **A dependency licence slipped in:** `dirs` → `option-ext` (MPL-2.0). `cargo deny` flagged it against
+  our policy; the three-line replacement lives in `embr-platform`.
+
 ## Known limitations (also in the threat model)
+* **Milestone 3 gaps:** no Windows transport (named pipes with a user-only DACL); no spawn-bound
+  clients; no `SO_PEERPIDFD`; passwords arrive in `String` fields of request structs (not zeroised;
+  they also pass through `serde_json::Value`); the control token and client key files are plain
+  same-user secrets; the audit log is an ordinary file; **no fuzzing yet** and no independent review.
 * **Memory scrubbing is best-effort.** Secrets live in zeroising containers, but Rust cannot prove
   no other copy exists; swap, hibernation and core dumps are not yet blocked (daemon hardening is
   M3). The `argon2` crate's `zeroize` feature is enabled and wipes the initial hash and block hash
