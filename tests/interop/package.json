@@ -1,0 +1,11 @@
+{
+  "name": "embr-interop",
+  "private": true,
+  "version": "0.0.0",
+  "description": "Interoperability checks of Embr against an independent Nostr implementation (nostr-tools).",
+  "type": "module",
+  "license": "MIT",
+  "dependencies": {
+    "nostr-tools": "2.26.1"
+  }
+}

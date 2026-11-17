@@ -1,0 +1,5 @@
+[toolchain]
+# Pinned for reproducible builds. MSRV (declared in Cargo.toml) is lower.
+channel = "1.100.0"
+profile = "minimal"
+components = ["clippy", "rustfmt"]

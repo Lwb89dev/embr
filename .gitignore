@@ -1,0 +1,8 @@
+/target
+**/node_modules
+*.swp
+.DS_Store
+# Never commit vaults, keys or local test artefacts
+*.embr
+*.embr.tmp
+.env
