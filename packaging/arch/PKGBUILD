@@ -16,6 +16,9 @@ url='https://github.com/Lwb89dev/embr'
 license=('MIT')
 depends=('glibc' 'gcc-libs')
 makedepends=('cargo' 'git')
+# makepkg's default CFLAGS contain -flto; the `cc` crate would then build libsecp256k1 as LTO bitcode that
+# rustc's linker cannot resolve (undefined rustsecp256k1_* symbols). Standard for Rust packages with C code.
+options=('!lto')
 provides=("$_pkgname=${pkgver%%.r*}")
 conflicts=("$_pkgname")
 install=embr-git.install

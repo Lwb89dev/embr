@@ -1,4 +1,5 @@
 //! End-to-end tests: a real daemon, real Unix sockets, the real SDK and control clients.
+#![cfg(unix)]
 #![allow(
     clippy::unwrap_used,
     clippy::expect_used,
