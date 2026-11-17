@@ -48,6 +48,9 @@ pub enum VaultError {
     /// The avatar is not acceptable.
     #[error("invalid avatar: {0}")]
     InvalidAvatar(&'static str),
+    /// An application blob was refused.
+    #[error("invalid blob: {0}")]
+    InvalidBlob(&'static str),
     /// The vault holds the maximum number of accounts.
     #[error("too many accounts (maximum {0})")]
     TooManyAccounts(usize),

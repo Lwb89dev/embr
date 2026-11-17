@@ -1,0 +1,18 @@
+[package]
+name = "embr-platform"
+description = "OS glue for the Embr signer: private endpoints, instance lock, process hardening, peer hints"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+
+[target.'cfg(unix)'.dependencies]
+rustix = { version = "1", features = ["process", "fs", "thread"] }
+
+[lints]
+workspace = true
+
+[dev-dependencies]
+tempfile = "3"

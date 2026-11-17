@@ -1,0 +1,41 @@
+[package]
+name = "embrd"
+description = "The Embr signer daemon: holds the keys, serves local clients, answers approval decisions from the GUI/CLI"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+
+[lib]
+name = "embrd"
+path = "src/lib.rs"
+
+[[bin]]
+name = "embrd"
+path = "src/main.rs"
+
+[dependencies]
+embr-core.workspace = true
+embr-crypto.workspace = true
+embr-vault.workspace = true
+embr-policy.workspace = true
+embr-ipc = { workspace = true, features = ["tokio"] }
+embr-platform.workspace = true
+thiserror.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+hex.workspace = true
+getrandom.workspace = true
+zeroize.workspace = true
+sha2 = "0.10"
+tokio = { version = "1", default-features = false, features = ["rt-multi-thread", "net", "io-util", "sync", "time", "macros", "signal"] }
+tokio-util = { version = "0.7", default-features = false }
+
+[dev-dependencies]
+embr-client.workspace = true
+tempfile = "3"
+
+[lints]
+workspace = true

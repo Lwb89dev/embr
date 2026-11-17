@@ -1,0 +1,32 @@
+[package]
+name = "embrctl"
+description = "Command-line control of the Embr signer: unlock, accounts, approvals, permissions"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+
+[[bin]]
+name = "embrctl"
+path = "src/main.rs"
+
+[dependencies]
+embr-core.workspace = true
+embr-ipc.workspace = true
+embr-client.workspace = true
+embr-policy.workspace = true
+clap = { version = "4", default-features = false, features = ["std", "derive", "help", "usage", "error-context", "suggestions"] }
+rpassword = "7"
+serde_json.workspace = true
+
+[dev-dependencies]
+embrd = { path = "../embrd", version = "0.0.1" }
+tokio = { version = "1", default-features = false, features = ["rt-multi-thread", "macros", "time"] }
+tempfile = "3"
+embr-crypto.workspace = true
+embr-vault.workspace = true
+
+[lints]
+workspace = true

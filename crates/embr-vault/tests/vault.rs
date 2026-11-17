@@ -1026,3 +1026,93 @@ fn only_one_creator_wins_a_race() {
     let mut v = Vault::open(&f.path).unwrap();
     v.unlock(PW).unwrap();
 }
+
+// ---------------------------------------------------------------------------------------
+// application blobs (policy / settings storage)
+// ---------------------------------------------------------------------------------------
+
+#[test]
+fn blobs_are_persistent_encrypted_and_validated() {
+    let f = fixture();
+    let mut v = new_vault(&f);
+    assert_eq!(v.blob("policy").unwrap(), None);
+    v.set_blob("policy", Some(b"BLOB-MARKER-GRANTS")).unwrap();
+    v.set_blob("settings/v1", Some(b"{}")).unwrap();
+    assert!(
+        !contains(&fs::read(&f.path).unwrap(), b"BLOB-MARKER-GRANTS"),
+        "blobs must be encrypted"
+    );
+    drop(v);
+
+    let mut v = Vault::open(&f.path).unwrap();
+    assert_err(
+        v.blob("policy"),
+        |e| matches!(e, VaultError::Locked),
+        "locked",
+    );
+    v.unlock(PW).unwrap();
+    assert_eq!(v.blob("policy").unwrap().unwrap(), b"BLOB-MARKER-GRANTS");
+    v.set_blob("policy", None).unwrap();
+    assert_eq!(v.blob("policy").unwrap(), None);
+
+    for bad in ["", "UPPER", "has space", &"x".repeat(65), "semi;colon"] {
+        assert_err(
+            v.set_blob(bad, Some(b"x")),
+            |e| matches!(e, VaultError::InvalidBlob(_)),
+            bad,
+        );
+    }
+    assert_err(
+        v.set_blob("big", Some(&vec![0u8; 4 * 1024 * 1024 + 1])),
+        |e| matches!(e, VaultError::InvalidBlob(_)),
+        "size",
+    );
+    for i in 0..15 {
+        v.set_blob(&format!("b{i}"), Some(b"x")).unwrap();
+    }
+    assert_err(
+        v.set_blob("one-more", Some(b"x")),
+        |e| matches!(e, VaultError::InvalidBlob("too many blobs")),
+        "count",
+    );
+    // Existing blobs can still be overwritten at the limit.
+    v.set_blob("b0", Some(b"y")).unwrap();
+}
+
+#[test]
+fn blobs_survive_password_change_and_backup_and_tampering_is_detected() {
+    let f = fixture();
+    let mut v = new_vault(&f);
+    v.set_blob("policy", Some(b"grants")).unwrap();
+    v.change_password(PW, "another long password").unwrap();
+    let dir = tempfile::tempdir().unwrap();
+    let backup = dir.path().join("b.embr");
+    v.export_backup(&backup).unwrap();
+    let r =
+        Vault::restore_backup(&backup, "another long password", dir.path().join("r.embr")).unwrap();
+    assert_eq!(r.blob("policy").unwrap().unwrap(), b"grants");
+    drop((v, r));
+
+    // Editing the file (e.g. malware trying to add grants) is detected as corruption.
+    mutate_json(&f, |j| flip_b64_byte(j, "/body/ciphertext"));
+    let mut v = Vault::open(&f.path).unwrap();
+    assert_err(
+        v.unlock("another long password"),
+        |e| matches!(e, VaultError::WrongPasswordOrCorrupt),
+        "tamper",
+    );
+}
+
+#[test]
+fn a_failed_blob_write_is_rolled_back() {
+    let f = fixture();
+    let mut v = new_vault(&f);
+    v.set_blob("policy", Some(b"v1")).unwrap();
+    let dir = f.path.parent().unwrap().to_path_buf();
+    fs::rename(&dir, dir.with_extension("moved")).unwrap();
+    fs::write(&dir, b"not a directory").unwrap();
+    assert!(v.set_blob("policy", Some(b"v2")).is_err());
+    assert_eq!(v.blob("policy").unwrap().unwrap(), b"v1");
+    assert!(v.set_blob("new", Some(b"x")).is_err());
+    assert_eq!(v.blob("new").unwrap(), None);
+}

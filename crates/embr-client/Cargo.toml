@@ -1,0 +1,24 @@
+[package]
+name = "embr-client"
+description = "Blocking client SDK for the Embr local signer: log in, sign and encrypt without ever seeing a private key"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+
+[dependencies]
+embr-core.workspace = true
+embr-crypto.workspace = true
+embr-ipc.workspace = true
+embr-platform.workspace = true
+thiserror.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+
+[dev-dependencies]
+tempfile = "3"
+
+[lints]
+workspace = true

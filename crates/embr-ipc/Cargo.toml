@@ -1,0 +1,31 @@
+[package]
+name = "embr-ipc"
+description = "Wire protocol of the Embr local signer API and control channel (no I/O policy, no OS code)"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+
+[features]
+default = []
+# Async line codec for tokio (used by the daemon). Clients use the blocking codec.
+tokio = ["dep:tokio"]
+
+[dependencies]
+embr-core.workspace = true
+embr-crypto.workspace = true
+embr-policy.workspace = true
+thiserror.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+hex.workspace = true
+getrandom.workspace = true
+tokio = { version = "1", default-features = false, features = ["io-util"], optional = true }
+
+[dev-dependencies]
+tokio = { version = "1", default-features = false, features = ["io-util", "rt", "macros"] }
+
+[lints]
+workspace = true

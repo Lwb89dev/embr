@@ -1,6 +1,6 @@
 [workspace]
 resolver = "3"
-members = ["crates/*"]
+members = ["crates/*", "apps/*"]
 
 [workspace.package]
 version = "0.0.1"
@@ -30,6 +30,11 @@ unimplemented = "deny"
 [workspace.dependencies]
 embr-core = { path = "crates/embr-core", version = "0.0.1" }
 embr-crypto = { path = "crates/embr-crypto", version = "0.0.1" }
+embr-vault = { path = "crates/embr-vault", version = "0.0.1" }
+embr-policy = { path = "crates/embr-policy", version = "0.0.1" }
+embr-ipc = { path = "crates/embr-ipc", version = "0.0.1" }
+embr-platform = { path = "crates/embr-platform", version = "0.0.1" }
+embr-client = { path = "crates/embr-client", version = "0.0.1" }
 
 # Third-party (versions resolved by `cargo add`, see Cargo.lock)
 thiserror = "2"

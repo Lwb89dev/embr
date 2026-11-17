@@ -9,6 +9,8 @@
 //! * [`KeySecurity`] – the NIP-49 "key security byte" tracked per account.
 //! * [`AccountMeta`] – public, non-secret account information that is safe to show in a UI.
 
+pub mod display;
+
 use std::fmt;
 use std::str::FromStr;
 
@@ -20,12 +22,75 @@ pub enum CoreError {
     /// An [`AccountId`] was not 32 lowercase/uppercase hexadecimal characters.
     #[error("invalid account id: expected 32 hex characters")]
     InvalidAccountId,
+    /// A public key was not 64 hexadecimal characters.
+    #[error("invalid public key: expected 64 hex characters")]
+    InvalidPubkey,
     /// An [`Operation`] name was not recognised.
     #[error("unknown operation: {0:?}")]
     UnknownOperation(String),
     /// The operating system could not provide random bytes.
     #[error("operating system random number generator failed")]
     Rng,
+}
+
+/// A 32-byte x-only public key (Nostr pubkey), displayed and serialised as lowercase hex.
+///
+/// Used for client identities and for the `peer` of encryption operations.
+#[derive(Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
+pub struct Pubkey32([u8; 32]);
+
+impl Pubkey32 {
+    /// Builds a key from raw bytes (no curve validation: that happens where keys are used).
+    pub const fn from_bytes(bytes: [u8; 32]) -> Self {
+        Self(bytes)
+    }
+
+    /// Raw bytes.
+    pub const fn as_bytes(&self) -> &[u8; 32] {
+        &self.0
+    }
+
+    /// Abbreviated form for UIs and logs, e.g. `3bf0c63f…aefa459d`.
+    pub fn short(&self) -> String {
+        let h = hex::encode(self.0);
+        format!("{}…{}", h.get(..8).unwrap_or(""), h.get(56..).unwrap_or(""))
+    }
+}
+
+impl fmt::Display for Pubkey32 {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(&hex::encode(self.0))
+    }
+}
+
+impl fmt::Debug for Pubkey32 {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "Pubkey32({self})")
+    }
+}
+
+impl FromStr for Pubkey32 {
+    type Err = CoreError;
+
+    /// Accepts exactly 64 hexadecimal characters (either case).
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let mut out = [0u8; 32];
+        hex::decode_to_slice(s, &mut out).map_err(|_| CoreError::InvalidPubkey)?;
+        Ok(Self(out))
+    }
+}
+
+impl Serialize for Pubkey32 {
+    fn serialize<S: Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
+        s.serialize_str(&self.to_string())
+    }
+}
+
+impl<'de> Deserialize<'de> for Pubkey32 {
+    fn deserialize<D: Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
+        let s = String::deserialize(d)?;
+        s.parse().map_err(serde::de::Error::custom)
+    }
 }
 
 /// Opaque identifier of an account inside a vault.
@@ -214,6 +279,27 @@ mod tests {
         let json = serde_json::to_string(&id).unwrap();
         assert_eq!(json, format!("\"{s}\""));
         assert_eq!(serde_json::from_str::<AccountId>(&json).unwrap(), id);
+    }
+
+    #[test]
+    fn pubkey_roundtrip_and_strictness() {
+        let hex = "7e7e9c42a91bfef19fa929e5fda1b72e0ebc1a4c1141673e2794234d86addf4e";
+        let k: Pubkey32 = hex.parse().unwrap();
+        assert_eq!(k.to_string(), hex);
+        assert_eq!(
+            hex.to_uppercase().parse::<Pubkey32>().unwrap(),
+            k,
+            "case-insensitive input"
+        );
+        assert_eq!(k.short(), "7e7e9c42…86addf4e");
+        assert_eq!(serde_json::to_string(&k).unwrap(), format!("\"{hex}\""));
+        for bad in ["", "abcd", &hex[..63], &format!("{hex}0"), &"zz".repeat(32)] {
+            assert_eq!(
+                bad.parse::<Pubkey32>(),
+                Err(CoreError::InvalidPubkey),
+                "{bad:?}"
+            );
+        }
     }
 
     #[test]

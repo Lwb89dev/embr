@@ -23,6 +23,7 @@ mod fsutil;
 mod kdf;
 mod validate;
 
+use std::collections::BTreeMap;
 use std::fmt;
 use std::path::{Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -33,7 +34,7 @@ use zeroize::Zeroizing;
 
 use crate::format::{
     BODY_FORMAT, Body, BodyMeta, Envelope, KDF_ALG, KEY_LEN, MAGIC, NONCE_LEN, PasswordSlot,
-    SALT_LEN, Slot, StoredAccount, StoredAvatar, VERSION, body_aad,
+    SALT_LEN, Slot, StoredAccount, StoredAvatar, StoredBlob, VERSION, body_aad,
 };
 
 pub use error::VaultError;
@@ -42,6 +43,10 @@ pub use validate::{MAX_AVATAR_BYTES, MAX_LABEL_CHARS};
 
 /// Maximum number of accounts in one vault.
 pub const MAX_ACCOUNTS: usize = 256;
+/// Maximum number of application blobs.
+pub const MAX_BLOBS: usize = 16;
+/// Maximum size of one application blob.
+pub const MAX_BLOB_BYTES: usize = 4 * 1024 * 1024;
 
 /// A decrypted avatar image (untrusted bytes; validated only by size and magic number).
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -62,6 +67,7 @@ struct Unlocked {
     entries: Vec<Entry>,
     active: Option<AccountId>,
     revision: u64,
+    blobs: BTreeMap<String, StoredBlob>,
 }
 
 /// An encrypted vault file and, while unlocked, its decrypted accounts.
@@ -123,6 +129,7 @@ impl Vault {
                 entries: Vec::new(),
                 active: None,
                 revision: 0,
+                blobs: BTreeMap::new(),
             }),
             kdf_for_new: kdf,
         };
@@ -187,6 +194,7 @@ impl Vault {
             entries,
             active: meta.active,
             revision: meta.revision,
+            blobs: meta.blobs,
         });
         Ok(())
     }
@@ -393,6 +401,49 @@ impl Vault {
             let u = v.unlocked_mut()?;
             u.entries.insert(pos.min(u.entries.len()), removed);
             u.active = previous_active;
+            Ok(())
+        })
+    }
+
+    // ===== application blobs (policy, settings) =======================================
+
+    /// Reads a named application blob (e.g. the permission store). Blobs are encrypted and
+    /// authenticated together with the accounts, so they cannot be forged without the password.
+    pub fn blob(&self, name: &str) -> Result<Option<Vec<u8>>, VaultError> {
+        let u = self.require_unlocked()?;
+        Ok(u.blobs.get(name).map(|b| b.0.clone()))
+    }
+
+    /// Stores (or, with `None`, removes) a named application blob and persists the vault.
+    pub fn set_blob(&mut self, name: &str, data: Option<&[u8]>) -> Result<(), VaultError> {
+        if name.is_empty()
+            || name.len() > 64
+            || !name
+                .bytes()
+                .all(|b| b.is_ascii_lowercase() || b.is_ascii_digit() || b"_./-".contains(&b))
+        {
+            return Err(VaultError::InvalidBlob(
+                "name must be 1-64 chars of [a-z0-9_./-]",
+            ));
+        }
+        if data.is_some_and(|d| d.len() > MAX_BLOB_BYTES) {
+            return Err(VaultError::InvalidBlob("blob too large"));
+        }
+        let u = self.unlocked_mut()?;
+        if data.is_some() && !u.blobs.contains_key(name) && u.blobs.len() >= MAX_BLOBS {
+            return Err(VaultError::InvalidBlob("too many blobs"));
+        }
+        let old = match data {
+            Some(d) => u.blobs.insert(name.to_owned(), StoredBlob(d.to_vec())),
+            None => u.blobs.remove(name),
+        };
+        let name = name.to_owned();
+        self.commit_or(move |v| {
+            let u = v.unlocked_mut()?;
+            match old {
+                Some(b) => u.blobs.insert(name, b),
+                None => u.blobs.remove(&name),
+            };
             Ok(())
         })
     }
@@ -662,6 +713,7 @@ fn encode_body(u: &Unlocked, revision: u64) -> Result<Zeroizing<Vec<u8>>, VaultE
         revision,
         active: u.active,
         accounts: u.entries.iter().map(|e| e.stored.clone()).collect(),
+        blobs: u.blobs.clone(),
     };
     let meta_json = serde_json::to_vec(&meta)
         .map_err(|_| VaultError::Malformed("cannot serialise accounts"))?;

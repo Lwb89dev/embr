@@ -23,6 +23,8 @@
 //! Secret keys are deliberately kept **out of the JSON** so that they never pass through a
 //! general-purpose parser or allocator path that cannot be zeroised.
 
+use std::collections::BTreeMap;
+
 use base64::Engine as _;
 use base64::engine::general_purpose::STANDARD as B64;
 use embr_core::{AccountId, KeySecurity};
@@ -225,4 +227,12 @@ pub(crate) struct BodyMeta {
     pub(crate) revision: u64,
     pub(crate) active: Option<AccountId>,
     pub(crate) accounts: Vec<StoredAccount>,
+    /// Named application blobs (policy, settings): confidential and tamper-evident because they
+    /// live inside the authenticated body.
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub(crate) blobs: BTreeMap<String, StoredBlob>,
 }
+
+#[derive(Serialize, Deserialize, Clone, Debug)]
+#[serde(transparent)]
+pub(crate) struct StoredBlob(#[serde(with = "b64")] pub(crate) Vec<u8>);

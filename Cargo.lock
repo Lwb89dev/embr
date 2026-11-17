@@ -24,6 +24,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "anstyle"
+version = "1.0.14"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "940b3a0ca603d1eade50a4846a2afffd5ef57a9feac2c0e2ec2e14f9ead76000"
+
+[[package]]
 name = "argon2"
 version = "0.5.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -186,6 +192,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1fd0f2584146f6f2ef48085050886acf353beff7305ebd1ae69500e27c67f64b"
 
 [[package]]
+name = "bytes"
+version = "1.12.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "fc652a48c352aef3ea3aed32080501cf3ef6ed5da78602a020c991775b0aff04"
+
+[[package]]
 name = "cbc"
 version = "0.1.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -255,6 +267,45 @@ dependencies = [
  "crypto-common 0.2.2",
  "inout 0.2.6",
 ]
+
+[[package]]
+name = "clap"
+version = "4.6.8"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ac230478587d0269d8d6998b82ae69ea51509d55df66d9e92edd1f986904cd4a"
+dependencies = [
+ "clap_builder",
+ "clap_derive",
+]
+
+[[package]]
+name = "clap_builder"
+version = "4.6.7"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ec0797fb7aeb1406c84efac526901f7ec3ead2124f946b494e72879d4b54704d"
+dependencies = [
+ "anstyle",
+ "clap_lex",
+ "strsim",
+]
+
+[[package]]
+name = "clap_derive"
+version = "4.6.8"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "895c9d8d2ac2dd8b8a29f3724a14e72aaaa6debcf8c38c82f97305c6a172767a"
+dependencies = [
+ "heck",
+ "proc-macro2",
+ "quote",
+ "syn 3.0.10",
+]
+
+[[package]]
+name = "clap_lex"
+version = "1.1.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e0921b3876b3a1df8a1c9f912e7f94342458022c2e84288015893d83c4d62a79"
 
 [[package]]
 name = "cmov"
@@ -383,6 +434,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "embr-client"
+version = "0.0.1"
+dependencies = [
+ "embr-core",
+ "embr-crypto",
+ "embr-ipc",
+ "embr-platform",
+ "serde",
+ "serde_json",
+ "tempfile",
+ "thiserror",
+]
+
+[[package]]
 name = "embr-core"
 version = "0.0.1"
 dependencies = [
@@ -409,6 +474,39 @@ dependencies = [
 ]
 
 [[package]]
+name = "embr-ipc"
+version = "0.0.1"
+dependencies = [
+ "embr-core",
+ "embr-crypto",
+ "embr-policy",
+ "getrandom 0.3.4",
+ "hex",
+ "serde",
+ "serde_json",
+ "thiserror",
+ "tokio",
+]
+
+[[package]]
+name = "embr-platform"
+version = "0.0.1"
+dependencies = [
+ "rustix",
+ "tempfile",
+]
+
+[[package]]
+name = "embr-policy"
+version = "0.0.1"
+dependencies = [
+ "embr-core",
+ "serde",
+ "serde_json",
+ "thiserror",
+]
+
+[[package]]
 name = "embr-vault"
 version = "0.0.1"
 dependencies = [
@@ -424,6 +522,47 @@ dependencies = [
  "tempfile",
  "thiserror",
  "unicode-normalization",
+ "zeroize",
+]
+
+[[package]]
+name = "embrctl"
+version = "0.0.1"
+dependencies = [
+ "clap",
+ "embr-client",
+ "embr-core",
+ "embr-crypto",
+ "embr-ipc",
+ "embr-policy",
+ "embr-vault",
+ "embrd",
+ "rpassword",
+ "serde_json",
+ "tempfile",
+ "tokio",
+]
+
+[[package]]
+name = "embrd"
+version = "0.0.1"
+dependencies = [
+ "embr-client",
+ "embr-core",
+ "embr-crypto",
+ "embr-ipc",
+ "embr-platform",
+ "embr-policy",
+ "embr-vault",
+ "getrandom 0.3.4",
+ "hex",
+ "serde",
+ "serde_json",
+ "sha2 0.10.9",
+ "tempfile",
+ "thiserror",
+ "tokio",
+ "tokio-util",
  "zeroize",
 ]
 
@@ -469,6 +608,18 @@ checksum = "cb4cb245038516f5f85277875cdaa4f7d2c9a0fa0468de06ed190163b1581fcf"
 dependencies = [
  "percent-encoding",
 ]
+
+[[package]]
+name = "futures-core"
+version = "0.3.34"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "92d699e522242e69e3003b94ecc1f960f3a5e015aa7c5d7486e65ad01dd94f5e"
+
+[[package]]
+name = "futures-sink"
+version = "0.3.34"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1944426bf7d03f1d14f708785e4b33efd750b36d48a157b836b3efc15ede8e1d"
 
 [[package]]
 name = "generic-array"
@@ -533,6 +684,12 @@ dependencies = [
  "hash32",
  "stable_deref_trait",
 ]
+
+[[package]]
+name = "heck"
+version = "0.5.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2304e00983f87ffb38b55b444b5e3b60a884b5d30c0fca7d82fe33449bbe55ea"
 
 [[package]]
 name = "hex"
@@ -728,6 +885,17 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "cf8baf1c55e62ffcace7a9f06f4bd9cd3f0c4beb022d3b367256b91b87513d98"
 
 [[package]]
+name = "mio"
+version = "1.2.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "20521a903f02b0a573cd6840e9d0a5a0cc043d361fe924092cd70f8556cc9c4a"
+dependencies = [
+ "libc",
+ "wasi",
+ "windows-sys",
+]
+
+[[package]]
 name = "nostr"
 version = "0.45.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -798,6 +966,12 @@ name = "percent-encoding"
 version = "2.3.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9b4f627cb1b25917193a259e49bdad08f671f8d9708acfd5fe0a8c1455d87220"
+
+[[package]]
+name = "pin-project-lite"
+version = "0.2.17"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a89322df9ebe1c1578d689c92318e070967d1042b512afbe49518723f4e6d5cd"
 
 [[package]]
 name = "poly1305"
@@ -903,6 +1077,27 @@ name = "rand_core"
 version = "0.10.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "63b8176103e19a2643978565ca18b50549f6101881c443590420e4dc998a3c69"
+
+[[package]]
+name = "rpassword"
+version = "7.5.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1fa2c5d9304b618df61ff17f3d3485c6e1854a3d94902a49abbb8d43dfbe0464"
+dependencies = [
+ "libc",
+ "rtoolbox",
+ "windows-sys",
+]
+
+[[package]]
+name = "rtoolbox"
+version = "0.0.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9a1efe12a1469752d0e6ff5ebec0b6ef4924cc5c4c71046b0ec730040535819d"
+dependencies = [
+ "libc",
+ "windows-sys",
+]
 
 [[package]]
 name = "rustix"
@@ -1031,16 +1226,42 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f8fadd59c855ef2080decdef8ff161eb6661b86933c9d82e5ba29dc602a55aba"
 
 [[package]]
+name = "signal-hook-registry"
+version = "1.4.8"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c4db69cba1110affc0e9f7bcd48bbf87b3f4fc7c61fc9155afd4c469eb3d6c1b"
+dependencies = [
+ "errno",
+ "libc",
+]
+
+[[package]]
 name = "smallvec"
 version = "1.16.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "149309498a5f7334b12ddae0cad8aba81ce785fe91755068867e017cf98fee46"
 
 [[package]]
+name = "socket2"
+version = "0.6.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c3d1e2c7f27f8d4cb10542a02c49005dbd6e93095799d6f3be745fae9f8fedd4"
+dependencies = [
+ "libc",
+ "windows-sys",
+]
+
+[[package]]
 name = "stable_deref_trait"
 version = "1.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6ce2be8dc25455e1f91df71bfa12ad37d7af1092ae736f3a6cd0e37bc7810596"
+
+[[package]]
+name = "strsim"
+version = "0.11.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7da8b5736845d9f2fcb837ea5d9e2628564b3b043a70948a3f0b778838c5fb4f"
 
 [[package]]
 name = "subtle"
@@ -1129,6 +1350,46 @@ name = "tinyvec"
 version = "1.13.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "fd3ca314f692efd6c868f8408f53fe444634a845f96c028b97d35f6a1f79f0ee"
+
+[[package]]
+name = "tokio"
+version = "1.54.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b52fd3255258d26fac7264ab5a76b53c13367136dc011d3d6ad4f8ed070396a3"
+dependencies = [
+ "bytes",
+ "libc",
+ "mio",
+ "pin-project-lite",
+ "signal-hook-registry",
+ "socket2",
+ "tokio-macros",
+ "windows-sys",
+]
+
+[[package]]
+name = "tokio-macros"
+version = "2.7.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "78773a2a397f451582ce068015985c33193cf6dea8b74d2a639fe457b2f07b0e"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 3.0.10",
+]
+
+[[package]]
+name = "tokio-util"
+version = "0.7.20"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e464cf451ba96ebfc6f9b6542f17ee8b8956e33f1e40d9690624e59d7a7f8a4b"
+dependencies = [
+ "bytes",
+ "futures-core",
+ "futures-sink",
+ "pin-project-lite",
+ "tokio",
+]
 
 [[package]]
 name = "typenum"
