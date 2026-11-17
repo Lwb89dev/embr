@@ -1121,7 +1121,14 @@ fn a_failed_blob_write_is_rolled_back() {
 /// what the code actually uses. This once drifted (the benchmark script caught 128 MiB in the binary).
 #[test]
 fn the_default_kdf_cost_is_the_documented_one() {
-    assert_eq!(KdfParams::DEFAULT, KdfParams { m_kib: 262_144, t_cost: 3, p_cost: 4 });
+    assert_eq!(
+        KdfParams::DEFAULT,
+        KdfParams {
+            m_kib: 262_144,
+            t_cost: 3,
+            p_cost: 4
+        }
+    );
     assert!(KdfParams::DEFAULT.validate_for_new().is_ok());
     // A vault created with the default records exactly those parameters.
     let dir = tempfile::tempdir().unwrap();

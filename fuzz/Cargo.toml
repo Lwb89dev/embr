@@ -1,0 +1,60 @@
+[package]
+name = "embr-fuzz"
+version = "0.0.0"
+publish = false
+edition = "2024"
+
+[package.metadata]
+cargo-fuzz = true
+
+[dependencies]
+libfuzzer-sys = "0.4"
+arbitrary = "1"
+serde_json = "1"
+embr-core = { path = "../crates/embr-core" }
+embr-crypto = { path = "../crates/embr-crypto" }
+embr-vault = { path = "../crates/embr-vault" }
+embr-policy = { path = "../crates/embr-policy" }
+embr-ipc = { path = "../crates/embr-ipc" }
+
+# Detach from the main workspace (cargo-fuzz needs nightly and its own profile).
+[workspace]
+
+[profile.release]
+debug = 1
+
+[[bin]]
+name = "ipc_lines"
+path = "fuzz_targets/ipc_lines.rs"
+test = false
+doc = false
+
+[[bin]]
+name = "event_template"
+path = "fuzz_targets/event_template.rs"
+test = false
+doc = false
+
+[[bin]]
+name = "vault_file"
+path = "fuzz_targets/vault_file.rs"
+test = false
+doc = false
+
+[[bin]]
+name = "policy_json"
+path = "fuzz_targets/policy_json.rs"
+test = false
+doc = false
+
+[[bin]]
+name = "crypto_inputs"
+path = "fuzz_targets/crypto_inputs.rs"
+test = false
+doc = false
+
+[[bin]]
+name = "auth_proof"
+path = "fuzz_targets/auth_proof.rs"
+test = false
+doc = false
