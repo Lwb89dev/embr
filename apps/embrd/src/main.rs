@@ -1,7 +1,6 @@
 //! `embrd` entry point.
 #![allow(clippy::print_stdout, clippy::print_stderr)]
 
-#[cfg(unix)]
 fn main() {
     use embrd::{DaemonConfig, log};
 
@@ -65,30 +64,29 @@ fn main() {
             Ok(d) => d,
             Err(e) => return fail(&e.to_string()),
         };
-        let mut term =
-            match tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate()) {
-                Ok(s) => s,
-                Err(e) => return fail(&format!("cannot install signal handler: {e}")),
-            };
+        #[cfg(unix)]
+        {
+            let mut term =
+                match tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate()) {
+                    Ok(s) => s,
+                    Err(e) => return fail(&format!("cannot install signal handler: {e}")),
+                };
+            tokio::select! {
+                _ = tokio::signal::ctrl_c() => log("interrupted"),
+                _ = term.recv() => log("terminated"),
+                () = daemon.stopped() => {}
+            }
+        }
+        #[cfg(not(unix))]
         tokio::select! {
             _ = tokio::signal::ctrl_c() => log("interrupted"),
-            _ = term.recv() => log("terminated"),
             () = daemon.stopped() => {}
         }
         daemon.shutdown().await;
     });
 }
 
-#[cfg(unix)]
 fn fail(msg: &str) {
     eprintln!("embrd: {msg}");
-    std::process::exit(1);
-}
-
-#[cfg(not(unix))]
-fn main() {
-    eprintln!(
-        "embrd: this platform is not supported yet (Windows named-pipe transport is not implemented)"
-    );
     std::process::exit(1);
 }

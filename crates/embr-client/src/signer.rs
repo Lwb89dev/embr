@@ -14,10 +14,7 @@ use serde_json::{Value, json};
 
 use crate::ClientError;
 
-#[cfg(unix)]
-type Stream = std::os::unix::net::UnixStream;
-#[cfg(not(unix))]
-type Stream = std::fs::File;
+type Stream = crate::transport::Stream;
 
 /// Options for [`SignerClient::connect`].
 #[derive(Clone, Debug)]
@@ -78,30 +75,19 @@ impl std::fmt::Debug for SignerClient {
 impl SignerClient {
     /// Connects, performs the handshake and proves possession of `identity` (the client key).
     pub fn connect(identity: &Identity, opts: ConnectOptions) -> Result<Self, ClientError> {
-        #[cfg(not(unix))]
-        {
-            let _ = (identity, opts);
-            Err(ClientError::Unsupported)
-        }
+        let path = opts
+            .endpoint
+            .clone()
+            .unwrap_or_else(embr_platform::paths::signer_socket);
+        let stream = crate::transport::connect(&path)?;
         #[cfg(unix)]
-        {
-            let path = opts
-                .endpoint
-                .clone()
-                .unwrap_or_else(embr_platform::paths::signer_socket);
-            if let Some(dir) = path.parent().filter(|p| !p.as_os_str().is_empty()) {
-                // Refuse to talk to a socket in a directory someone else could have prepared.
-                embr_platform::paths::verify_private_dir(dir).map_err(ClientError::Connect)?;
-            }
-            let stream = Stream::connect(&path).map_err(ClientError::Connect)?;
-            stream.set_read_timeout(opts.read_timeout)?;
-            Self::handshake(stream, identity, &opts.client_name)
-        }
+        stream.set_read_timeout(opts.read_timeout)?;
+        // (Windows pipes opened as files have no read timeout; the signer enforces its own.)
+        Self::handshake(stream, identity, &opts.client_name)
     }
 
     /// Runs the handshake over an already-connected stream (used by tests and launchers that pass
     /// a pre-connected descriptor).
-    #[cfg(unix)]
     pub fn handshake(stream: Stream, identity: &Identity, name: &str) -> Result<Self, ClientError> {
         let writer = stream.try_clone()?;
         let mut reader = BufReader::new(stream);

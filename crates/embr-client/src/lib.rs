@@ -20,6 +20,7 @@ pub mod control;
 mod error;
 pub mod keyfile;
 mod signer;
+mod transport;
 
 pub use error::ClientError;
 pub use signer::{ConnectOptions, PairInfo, SignerClient};

@@ -1,6 +1,5 @@
-# NOTE: this workflow has not been executed on GitHub yet (written 2026-11-17). The daemon and its
-# tests are Unix-only; the Windows `test` job is expected to fail to build `embr-platform`/`embr-client`
-# pieces until the named-pipe transport exists (Milestone 3b) — see docs/TESTING.md. Before the first
+# NOTE: first executed on GitHub on 2026-11-17 (see docs/TESTING.md for what each job proved). The Windows
+# job runs the named-pipe smoke test (apps/embrd/tests/windows_smoke.rs); the full e2e suites are Unix-only. Before the first
 # release: pin every `uses:` to a full commit SHA (see docs/RELEASE.md).
 name: CI
 

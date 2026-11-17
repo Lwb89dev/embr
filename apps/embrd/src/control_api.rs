@@ -22,8 +22,7 @@ use embr_policy::{AuditOutcome, AuditRecord, Choice, Engine, PolicyError, Scope}
 use embr_vault::{Vault, VaultError};
 use serde::Serialize;
 use serde_json::{Value, json};
-use tokio::io::BufReader;
-use tokio::net::UnixStream;
+use tokio::io::{AsyncRead, AsyncWrite, BufReader};
 use tokio::sync::mpsc;
 
 use crate::client_api::CountGuard;
@@ -54,17 +53,17 @@ async fn send<T: Serialize>(tx: &mpsc::Sender<Vec<u8>>, v: &T) {
 }
 
 /// Serves one control connection.
-pub(crate) async fn serve(shared: Arc<Shared>, stream: UnixStream) {
+pub(crate) async fn serve<S>(shared: Arc<Shared>, stream: S)
+where
+    S: AsyncRead + AsyncWrite + Unpin + Send + 'static,
+{
     let Some(_guard) =
         CountGuard::try_acquire(&shared, |s| &s.control_conns, MAX_CONTROL_CONNECTIONS)
     else {
         return;
     };
-    let Ok(cred) = stream.peer_cred() else { return };
-    if cred.uid() != embr_platform::paths::current_uid() {
-        return;
-    }
-    let (rd, mut wr) = stream.into_split();
+    // (The acceptor has already established that the peer is the daemon's own user.)
+    let (rd, mut wr) = tokio::io::split(stream);
     let mut reader = BufReader::new(rd);
     let (tx, mut rx) = mpsc::channel::<Vec<u8>>(256);
     let writer = tokio::spawn(async move {

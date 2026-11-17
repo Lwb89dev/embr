@@ -8,11 +8,30 @@ license.workspace = true
 authors.workspace = true
 repository.workspace = true
 
+[target.'cfg(windows)'.dependencies]
+tokio = { version = "1", default-features = false, features = ["net"] }
+windows-sys = { version = "0.59", features = ["Win32_Foundation", "Win32_Security", "Win32_Security_Authorization", "Win32_System_Threading", "Win32_System_Pipes"] }
+
 [target.'cfg(unix)'.dependencies]
 rustix = { version = "1", features = ["process", "fs", "thread"] }
 
-[lints]
-workspace = true
+[lints.rust]
+# `unsafe` is confined to `src/windows.rs` (Win32 FFI for the named-pipe security descriptor); every use is
+# documented in place. The rest of the crate, and every other crate in the workspace, forbids it.
+unsafe_code = "deny"
+missing_docs = "warn"
+unreachable_pub = "warn"
+
+[lints.clippy]
+unwrap_used = "warn"
+expect_used = "warn"
+panic = "warn"
+indexing_slicing = "warn"
+dbg_macro = "deny"
+print_stdout = "warn"
+print_stderr = "warn"
+todo = "deny"
+unimplemented = "deny"
 
 [dev-dependencies]
 tempfile = "3"

@@ -25,8 +25,7 @@ use embr_ipc::{
 use embr_policy::{AuditOutcome, AuditRecord, ClientRecord, SessionId, Verdict};
 use serde::Serialize;
 use serde_json::{Value, json};
-use tokio::io::{AsyncBufRead, BufReader};
-use tokio::net::UnixStream;
+use tokio::io::{AsyncBufRead, AsyncRead, AsyncWrite, BufReader};
 use tokio::sync::{mpsc, oneshot};
 use tokio_util::sync::CancellationToken;
 
@@ -95,7 +94,10 @@ async fn send<T: Serialize>(tx: &mpsc::Sender<Vec<u8>>, v: &T) {
 }
 
 /// Serves one client connection until it closes.
-pub(crate) async fn serve(shared: Arc<Shared>, stream: UnixStream) {
+pub(crate) async fn serve<S>(shared: Arc<Shared>, stream: S, peer: PeerHint)
+where
+    S: AsyncRead + AsyncWrite + Unpin + Send + 'static,
+{
     let limits = shared.cfg.limits.clone();
     let Some(_total) =
         CountGuard::try_acquire(&shared, |s| &s.client_conns, limits.max_connections)
@@ -107,19 +109,9 @@ pub(crate) async fn serve(shared: Arc<Shared>, stream: UnixStream) {
     else {
         return;
     };
+    // (The acceptor has already established that the peer is the daemon's own user.)
 
-    // Same user only. (Other users cannot reach the 0700 directory anyway; this is the second lock.)
-    let Ok(cred) = stream.peer_cred() else { return };
-    if cred.uid() != embr_platform::paths::current_uid() {
-        return;
-    }
-    let peer = PeerHint {
-        pid: cred.pid(),
-        uid: cred.uid(),
-        exe: cred.pid().and_then(embr_platform::peer::exe_of_pid),
-    };
-
-    let (rd, mut wr) = stream.into_split();
+    let (rd, mut wr) = tokio::io::split(stream);
     let mut reader = BufReader::new(rd);
     let (tx, mut rx) = mpsc::channel::<Vec<u8>>(256);
     let writer = tokio::spawn(async move {

@@ -25,6 +25,11 @@ pub fn runtime_dir() -> PathBuf {
     if let Some(dir) = std::env::var_os("EMBR_RUNTIME_DIR") {
         return PathBuf::from(dir);
     }
+    if cfg!(windows) {
+        // Windows has no runtime directory for sockets (endpoints are named pipes); this holds only
+        // the single-instance lock. `%LOCALAPPDATA%\embr\run` is private to the user by default ACL.
+        return data_dir().join("run");
+    }
     if cfg!(target_os = "linux") {
         if let Some(x) = std::env::var_os("XDG_RUNTIME_DIR").map(PathBuf::from) {
             if x.is_absolute() {
@@ -76,18 +81,33 @@ fn user_data_base() -> PathBuf {
     PathBuf::from(".")
 }
 
-/// Client-API socket path (`EMBR_SIGNER_SOCKET` overrides).
+/// Client-API endpoint (`EMBR_SIGNER_SOCKET` overrides): a Unix socket path, or on Windows a named
+/// pipe `\\.\pipe\embr-signer-<user SID>`.
 pub fn signer_socket() -> PathBuf {
     std::env::var_os("EMBR_SIGNER_SOCKET")
         .map(PathBuf::from)
-        .unwrap_or_else(|| runtime_dir().join("signer.sock"))
+        .unwrap_or_else(|| default_endpoint("signer"))
 }
 
-/// Control-channel socket path (`EMBR_CONTROL_SOCKET` overrides).
+/// Control-channel endpoint (`EMBR_CONTROL_SOCKET` overrides).
 pub fn control_socket() -> PathBuf {
     std::env::var_os("EMBR_CONTROL_SOCKET")
         .map(PathBuf::from)
-        .unwrap_or_else(|| runtime_dir().join("control.sock"))
+        .unwrap_or_else(|| default_endpoint("control"))
+}
+
+#[cfg(windows)]
+fn default_endpoint(kind: &str) -> PathBuf {
+    // Per-user name: another user's daemon has a different pipe. (The DACL, not the name, is the
+    // protection; the name only avoids collisions.)
+    let who = crate::windows::current_user_sid()
+        .unwrap_or_else(|_| std::env::var("USERNAME").unwrap_or_else(|_| "user".into()));
+    PathBuf::from(format!(r"\\.\pipe\embr-{kind}-{who}"))
+}
+
+#[cfg(not(windows))]
+fn default_endpoint(kind: &str) -> PathBuf {
+    runtime_dir().join(format!("{kind}.sock"))
 }
 
 /// Creates `dir` (and parents) if needed with mode `0700`, then verifies it with

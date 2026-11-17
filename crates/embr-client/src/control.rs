@@ -6,6 +6,7 @@
 use std::collections::VecDeque;
 use std::io::BufReader;
 use std::path::PathBuf;
+#[cfg(unix)]
 use std::time::Duration;
 
 use embr_ipc::codec::{read_line, write_line};
@@ -17,10 +18,7 @@ use serde_json::{Value, json};
 
 use crate::ClientError;
 
-#[cfg(unix)]
-type Stream = std::os::unix::net::UnixStream;
-#[cfg(not(unix))]
-type Stream = std::fs::File;
+type Stream = crate::transport::Stream;
 
 /// A connection to the control channel.
 pub struct ControlClient {
@@ -37,33 +35,22 @@ pub struct ControlClient {
 impl ControlClient {
     /// Connects to `endpoint` (default: the per-user control socket).
     pub fn connect(endpoint: Option<PathBuf>) -> Result<Self, ClientError> {
-        #[cfg(not(unix))]
-        {
-            let _ = endpoint;
-            Err(ClientError::Unsupported)
-        }
-        #[cfg(unix)]
-        {
-            let path = endpoint.unwrap_or_else(embr_platform::paths::control_socket);
-            if let Some(dir) = path.parent().filter(|p| !p.as_os_str().is_empty()) {
-                embr_platform::paths::verify_private_dir(dir).map_err(ClientError::Connect)?;
-            }
-            let stream = Stream::connect(&path).map_err(ClientError::Connect)?;
-            let writer = stream.try_clone()?;
-            let mut reader = BufReader::new(stream);
-            let line = read_line(&mut reader, MAX_LINE_BYTES)?
-                .ok_or_else(|| ClientError::Protocol("daemon closed the connection".into()))?;
-            let hello: ControlHello = serde_json::from_str(&line)
-                .map_err(|_| ClientError::Protocol("bad control hello".into()))?;
-            Ok(Self {
-                reader,
-                writer,
-                next_id: 1,
-                events: VecDeque::new(),
-                hello,
-                token: None,
-            })
-        }
+        let path = endpoint.unwrap_or_else(embr_platform::paths::control_socket);
+        let stream = crate::transport::connect(&path)?;
+        let writer = stream.try_clone()?;
+        let mut reader = BufReader::new(stream);
+        let line = read_line(&mut reader, MAX_LINE_BYTES)?
+            .ok_or_else(|| ClientError::Protocol("daemon closed the connection".into()))?;
+        let hello: ControlHello = serde_json::from_str(&line)
+            .map_err(|_| ClientError::Protocol("bad control hello".into()))?;
+        Ok(Self {
+            reader,
+            writer,
+            next_id: 1,
+            events: VecDeque::new(),
+            hello,
+            token: None,
+        })
     }
 
     /// Sets the read timeout of the underlying socket.

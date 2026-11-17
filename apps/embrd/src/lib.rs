@@ -8,28 +8,18 @@
 //! * the **control channel** (`control.sock`): the GUI/CLI unlock the vault, manage accounts and
 //!   answer approval prompts. A client of the first socket cannot use the second.
 //!
-//! No network I/O happens in this crate. Windows is not supported yet (named pipes are the next
-//! step of Milestone 3).
+//! Endpoints are Unix-domain sockets (Linux/macOS) or user-only named pipes (Windows).
 #![allow(clippy::print_stderr, unreachable_pub)]
 
-#[cfg(unix)]
 mod audit;
-#[cfg(unix)]
 mod canonical;
-#[cfg(unix)]
 mod client_api;
-#[cfg(unix)]
 mod control_api;
-#[cfg(unix)]
 mod nip46;
-#[cfg(unix)]
 mod server;
-#[cfg(unix)]
 mod state;
 
-#[cfg(unix)]
 pub use server::{DaemonError, DaemonHandle, start};
-#[cfg(unix)]
 pub use state::{DaemonConfig, DaemonLimits, Shared};
 
 /// Logs a line to stderr (journald/terminal). Never pass secrets or message content.
