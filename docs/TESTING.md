@@ -1,5 +1,11 @@
 # Testing
 
+## Fuzzing
+```bash
+cargo install cargo-fuzz --locked && rustup toolchain install nightly --profile minimal
+cargo +nightly fuzz run ipc_lines -- -max_total_time=300     # targets: ipc_lines event_template vault_file policy_json crypto_inputs auth_proof
+```
+
 ## Running
 ```bash
 cargo test --workspace                  # unit + integration + e2e (151 tests at Milestone 3; ~30 s)
@@ -46,8 +52,12 @@ caught by tests, one (AAD over KDF fields) is redundant by design and was docume
 * The e2e suite uses real time for expiry/auto-lock (≈2 s waits); it passed 3 consecutive runs on
   2026-11-17 on Linux, but timing tests can flake on a heavily loaded CI machine.
 * Unix sockets only: Windows named pipes (and their DACL) are untested because unwritten.
-* **No fuzzing yet** (planned M7: `cargo-fuzz` on the template parser, vault envelope parser, IPC
-  framing, NIP-46 message parser).
+* **Fuzzing is minimal so far.** `fuzz/` holds six libFuzzer targets (IPC framing + every strict wire type,
+  event templates incl. sign-and-verify, vault file parsing, stored policy JSON with a default-deny/DM-kind
+  invariant, key/ciphertext parsing, handshake proofs). Each ran **40 s locally on 2026-11-17: ≈16.4 M
+  executions in total, no crash/timeout/OOM** — a smoke test, not assurance. No seed corpora, no structure-aware
+  mutators, no sanitizers beyond libFuzzer's defaults. A weekly 5-minute-per-target CI run is configured but has
+  not executed yet. NIP-46 message parsing will get its own target with Milestone 5.
 * No test of OS suspend/resume, SIGKILL/crash recovery beyond stale-socket cleanup, package upgrade/uninstall.
 * Interop with `nak`, Amber, or any NIP-46 implementation: not yet.
 * No timing/side-channel testing of our own code (we rely on libsecp256k1/RustCrypto).

@@ -92,7 +92,7 @@ All of these are exercised end to end against a real `embrd` on real sockets
 * **Milestone 3 gaps:** no Windows transport (named pipes with a user-only DACL); no spawn-bound
   clients; no `SO_PEERPIDFD`; passwords arrive in `String` fields of request structs (not zeroised;
   they also pass through `serde_json::Value`); the control token and client key files are plain
-  same-user secrets; the audit log is an ordinary file; **no fuzzing yet** and no independent review.
+  same-user secrets; the audit log is an ordinary file; only smoke-level fuzzing and no independent review.
 * **Memory scrubbing is best-effort.** Secrets live in zeroising containers, but Rust cannot prove
   no other copy exists; swap, hibernation and core dumps are not yet blocked (daemon hardening is
   M3). The `argon2` crate's `zeroize` feature is enabled and wipes the initial hash and block hash
@@ -108,7 +108,7 @@ All of these are exercised end to end against a real `embrd` on real sockets
   only and will be labelled as such everywhere.
 
 ## Not yet done (must precede any "production-ready" claim)
-Independent code review and audit · fuzzing of the parsers and IPC (M7) · penetration test of the
+Independent code review and audit · long-running fuzzing (only 40 s smoke runs so far, see `TESTING.md`) · penetration test of the
 IPC and approval flow · platform tests on macOS/Windows · reproducible builds · signed releases.
 
 ## Practices
