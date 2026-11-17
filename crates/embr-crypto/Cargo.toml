@@ -1,0 +1,24 @@
+[package]
+name = "embr-crypto"
+description = "Nostr cryptographic operations for the Embr signer (thin, validated wrapper over rust-nostr)"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+
+[dependencies]
+embr-core.workspace = true
+nostr = { version = "0.45", default-features = false, features = ["std", "os-rng", "nip04", "nip06", "nip44", "nip49"] }
+thiserror.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+zeroize.workspace = true
+
+[dev-dependencies]
+hex.workspace = true
+base64 = "0.22"
+sha2 = "0.10"
+
+[lints]
+workspace = true

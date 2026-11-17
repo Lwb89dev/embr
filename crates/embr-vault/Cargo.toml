@@ -1,0 +1,28 @@
+[package]
+name = "embr-vault"
+description = "Encrypted multi-account key vault for the Embr signer (Argon2id + XChaCha20-Poly1305)"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+
+[dependencies]
+embr-core.workspace = true
+embr-crypto.workspace = true
+argon2 = { version = "0.5", features = ["zeroize"] }
+chacha20poly1305 = "0.10"
+base64 = "0.22"
+tempfile = "3"
+unicode-normalization = "0.1"
+thiserror.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+zeroize.workspace = true
+getrandom.workspace = true
+
+[dev-dependencies]
+hex.workspace = true
+
+[lints]
+workspace = true

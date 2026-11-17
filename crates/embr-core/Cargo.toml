@@ -1,0 +1,20 @@
+[package]
+name = "embr-core"
+description = "Platform-independent shared types for the Embr Nostr signer"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+
+[dependencies]
+thiserror.workspace = true
+serde.workspace = true
+hex.workspace = true
+getrandom.workspace = true
+
+[dev-dependencies]
+serde_json.workspace = true
+
+[lints]
+workspace = true
