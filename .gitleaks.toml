@@ -1,0 +1,15 @@
+# Secret-scanning configuration (used by the `secrets` CI job).
+# Everything allow-listed below is TEST DATA: throw-away keys derived from public labels, the public
+# examples printed in NIP-19 / NIP-49, and official test vectors. No real secret belongs in this repo.
+title = "embr gitleaks config"
+
+[extend]
+useDefault = true
+
+[[allowlists]]
+description = "Test-only throw-away keys and public specification vectors"
+paths = [
+  '''tests/vectors/.*''',
+  '''crates/[^/]+/tests/.*''',
+  '''docs/.*''',
+]

@@ -93,6 +93,8 @@ const nip19v = [
 ];
 
 const out = {
+  notice:
+    'TEST-ONLY. Every key, password and ncryptsec in this file is a throw-away value derived from the public labels "embr-interop/alice" and "embr-interop/bob". They protect nothing. Never use them for a real identity.',
   generator: { name: 'nostr-tools', version },
   alice_pubkey_hex: getPublicKey(alice),
   bob_pubkey_hex: getPublicKey(bob),
