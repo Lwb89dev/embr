@@ -19,6 +19,7 @@ pub struct HardeningReport {
 /// per-thread attribute that threads inherit from their creator at creation time; applying it after
 /// a runtime has spawned its workers would leave those workers without it.
 pub fn harden_process() -> HardeningReport {
+    #[cfg_attr(not(unix), allow(unused_mut))]
     let mut r = HardeningReport::default();
     #[cfg(unix)]
     {

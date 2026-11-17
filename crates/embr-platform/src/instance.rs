@@ -61,6 +61,20 @@ mod tests {
         let first = InstanceLock::acquire(&p).unwrap().unwrap();
         assert!(InstanceLock::acquire(&p).unwrap().is_none());
         drop(first);
-        assert!(InstanceLock::acquire(&p).unwrap().is_some());
+        // `flock` locks belong to the open file *description*. Another test in this process spawns a
+        // child (fork+exec); in the instant between fork and exec the child still shares that
+        // description, so the lock can look held for a few microseconds. Retry briefly.
+        let mut reacquired = false;
+        for _ in 0..200 {
+            if InstanceLock::acquire(&p).unwrap().is_some() {
+                reacquired = true;
+                break;
+            }
+            std::thread::sleep(std::time::Duration::from_millis(5));
+        }
+        assert!(
+            reacquired,
+            "the lock must be released once the holder is dropped"
+        );
     }
 }
