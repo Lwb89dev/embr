@@ -159,6 +159,32 @@ pub struct PendingEntry {
     pub reply: ReplyKind,
     /// Where to send the result.
     pub tx: Option<oneshot::Sender<Done>>,
+    /// If set, a pairing may only bind this account (NIP-46: the account of the transport key).
+    pub fixed_account: Option<AccountId>,
+    /// Context of a client-initiated `nostrconnect://` pairing.
+    pub nostrconnect: Option<NostrConnectCtx>,
+}
+
+/// What is needed to answer a `nostrconnect://` client once the user approves it.
+#[derive(Clone, Debug)]
+pub struct NostrConnectCtx {
+    /// Transport key (public) of the account the client is bound to.
+    pub signer: Pubkey32,
+    /// Secret to echo in the `connect` response.
+    pub secret: String,
+    /// Relays the client listens on.
+    pub relays: Vec<String>,
+}
+
+/// Extra, optional data for a new pending request.
+#[derive(Default)]
+pub struct PendingExtra {
+    /// Additional text for the prompt (relays, app URL…), already sanitised.
+    pub text: Option<String>,
+    /// See [`PendingEntry::fixed_account`].
+    pub fixed_account: Option<AccountId>,
+    /// See [`PendingEntry::nostrconnect`].
+    pub nostrconnect: Option<NostrConnectCtx>,
 }
 
 /// A control token (only a hash is kept).
@@ -196,6 +222,8 @@ pub struct Inner {
     audit: Audit,
     /// Open client sessions.
     pub sessions: BTreeMap<SessionId, SessionRec>,
+    /// NIP-46 state (empty while locked).
+    pub nip46: crate::nip46::Nip46State,
 }
 
 /// Shared handle.
@@ -209,6 +237,8 @@ pub struct Shared {
     /// Cancelled on shutdown.
     pub shutdown: CancellationToken,
     next_session: AtomicU64,
+    /// The NIP-46 relay service, present only while remote signing is enabled, configured and unlocked.
+    pub nip46_service: Mutex<Option<Arc<embr_nip46::service::Service>>>,
     /// Connections that have not finished the handshake.
     pub unauth_conns: AtomicUsize,
     /// Open client-API connections.
@@ -267,12 +297,14 @@ impl Shared {
                 limiter: RateLimiter::new(limits.rate_burst, limits.rate_per_sec),
                 audit,
                 sessions: BTreeMap::new(),
+                nip46: crate::nip46::Nip46State::default(),
             }),
             cfg,
             events,
             activity: Notify::new(),
             shutdown: CancellationToken::new(),
             next_session: AtomicU64::new(1),
+            nip46_service: Mutex::new(None),
             unauth_conns: AtomicUsize::new(0),
             client_conns: AtomicUsize::new(0),
             control_conns: AtomicUsize::new(0),
@@ -638,7 +670,28 @@ impl Shared {
         g.policy = Engine::new();
         g.settings = Settings::default();
         g.tokens.clear();
+        g.nip46 = crate::nip46::Nip46State::default();
         g.lock_epoch += 1;
+        if let Some(svc) = self
+            .nip46_service
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .take()
+        {
+            // Stop accepting new remote requests at once; keep the connection for a moment so the
+            // "vault is locked" answers to calls that were in flight reach their clients, then
+            // disconnect from every relay.
+            svc.clear_signers();
+            match tokio::runtime::Handle::try_current() {
+                Ok(h) => {
+                    h.spawn(async move {
+                        tokio::time::sleep(Duration::from_millis(750)).await;
+                        svc.stop();
+                    });
+                }
+                Err(_) => svc.stop(),
+            }
+        }
         self.activity.notify_one();
         if was_unlocked {
             g.audit_admin("lock", Some(why));

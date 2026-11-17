@@ -25,6 +25,8 @@ allow = [
     "Unicode-3.0",
     "CC0-1.0",
     "Zlib",
+    # Mozilla's CA root list shipped as *data* by `webpki-roots` (TLS to wss:// relays). Permissive.
+    "CDLA-Permissive-2.0",
 ]
 confidence-threshold = 0.9
 
@@ -35,8 +37,10 @@ deny = [
     # No C TLS stack or OpenSSL in the signer's trust base.
     { name = "openssl" },
     { name = "openssl-sys" },
-    # We use RustCrypto/libsecp256k1 only; a second crypto stack is a review burden.
-    { name = "ring" },
+    # Key material is handled by RustCrypto/libsecp256k1 only. `ring` is allowed *solely* as the TLS
+    # provider of rustls (transport to wss:// relays, ADR-9): it never sees a key, and NIP-46 content
+    # is NIP-44-encrypted end to end regardless of TLS.
+    { name = "ring", wrappers = ["rustls", "rustls-webpki"] },
 ]
 
 [sources]

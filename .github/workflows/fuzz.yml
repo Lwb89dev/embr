@@ -16,7 +16,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        target: [ipc_lines, event_template, vault_file, policy_json, crypto_inputs, auth_proof]
+        target: [ipc_lines, event_template, vault_file, policy_json, crypto_inputs, auth_proof, nip46_uri, nip46_event]
     steps:
       - uses: actions/checkout@v4
       - run: rustup toolchain install nightly --profile minimal

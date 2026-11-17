@@ -61,14 +61,31 @@ impl Drop for CountGuard {
     }
 }
 
+/// Who is asking and over which transport. Shared by the local client API and NIP-46, so that
+/// **one** `submit` function (one policy decision point) serves both.
+pub(crate) struct Origin {
+    pub(crate) session: SessionId,
+    pub(crate) client: Pubkey32,
+    /// Self-declared label, already sanitised (untrusted).
+    pub(crate) client_name: String,
+    /// Process hints (local connections only).
+    pub(crate) peer: Option<PeerHint>,
+    /// `"local"` or `"nip46"`.
+    pub(crate) via: &'static str,
+}
+
 /// State of one authenticated connection.
 struct Conn {
-    session: SessionId,
-    client: Pubkey32,
-    client_name: String,
-    peer: PeerHint,
+    origin: Origin,
     tx: mpsc::Sender<Vec<u8>>,
     token: CancellationToken,
+}
+
+impl std::ops::Deref for Conn {
+    type Target = Origin;
+    fn deref(&self) -> &Origin {
+        &self.origin
+    }
 }
 
 async fn send<T: Serialize>(tx: &mpsc::Sender<Vec<u8>>, v: &T) {
@@ -248,10 +265,13 @@ async fn handshake<R: AsyncBufRead + Unpin>(
     )
     .await;
     Some(Conn {
-        session,
-        client,
-        client_name: name,
-        peer,
+        origin: Origin {
+            session,
+            client,
+            client_name: name,
+            peer: Some(peer),
+            via: "local",
+        },
         tx: tx.clone(),
         token: CancellationToken::new(),
     })
@@ -425,7 +445,7 @@ fn record(
     let mut g = shared.lock();
     g.audit(&AuditRecord {
         ts: now_secs(),
-        via: "local".into(),
+        via: conn.via.into(),
         client: Some(conn.client),
         client_name: Some(conn.client_name.clone()),
         account: None,
@@ -440,7 +460,7 @@ fn record(
 /// Builds the canonical request once the account (and thus its public key) is known.
 type CanonicalBuilder = Box<dyn FnOnce(&str) -> Result<Canonical, RpcError>>;
 
-enum Submitted {
+pub(crate) enum Submitted {
     Done(Done),
     Wait {
         id: u64,
@@ -455,7 +475,17 @@ async fn dispatch(
     req: Request,
     cancel: CancellationToken,
 ) -> Done {
-    let submitted = submit(shared, conn, &req);
+    let submitted = submit(shared, &conn.origin, &req);
+    wait_submitted(shared, submitted, cancel).await
+}
+
+/// Waits for a [`Submitted`] request: immediate results pass through; queued ones wait for the
+/// user, a timeout, or cancellation (disconnect / shutdown), resolving the queue entry either way.
+pub(crate) async fn wait_submitted(
+    shared: &Arc<Shared>,
+    submitted: Submitted,
+    cancel: CancellationToken,
+) -> Done {
     match submitted {
         Submitted::Done(d) => d,
         Submitted::Wait {
@@ -465,11 +495,11 @@ async fn dispatch(
         } => {
             tokio::select! {
                 r = &mut rx => r.unwrap_or_else(|_| Err(RpcError::new(ErrorCode::Cancelled, "the signer is shutting down"))),
-                _ = tokio::time::sleep(timeout) => {
+                () = tokio::time::sleep(timeout) => {
                     shared.lock().resolve(shared, id, Err(RpcError::new(ErrorCode::Expired, "timed out waiting for the user")), "expired", AuditOutcome::Expired);
                     rx.await.unwrap_or_else(|_| Err(RpcError::new(ErrorCode::Expired, "timed out")))
                 }
-                _ = cancel.cancelled() => {
+                () = cancel.cancelled() => {
                     shared.lock().resolve(shared, id, Err(RpcError::new(ErrorCode::Cancelled, "cancelled")), "cancelled", AuditOutcome::Cancelled);
                     rx.await.unwrap_or_else(|_| Err(RpcError::new(ErrorCode::Cancelled, "cancelled")))
                 }
@@ -478,18 +508,18 @@ async fn dispatch(
     }
 }
 
-fn ident(conn: &Conn) -> ClientIdent {
+fn ident(conn: &Origin) -> ClientIdent {
     ClientIdent {
         pubkey: conn.client,
         name: conn.client_name.clone(),
-        peer: Some(conn.peer.clone()),
-        via: "local".into(),
+        peer: conn.peer.clone(),
+        via: conn.via.into(),
     }
 }
 
 /// Resolves the account a request targets. Unknown and not-granted accounts give the same error,
 /// so a client cannot probe which accounts exist.
-fn resolve_account(
+pub(crate) fn resolve_account(
     g: &Inner,
     rec: &ClientRecord,
     selector: Option<&str>,
@@ -531,15 +561,16 @@ fn timeout_of(shared: &Shared, req: &Request) -> Duration {
 }
 
 #[allow(clippy::too_many_arguments)]
-fn enqueue(
+pub(crate) fn enqueue(
     shared: &Arc<Shared>,
     g: &mut Inner,
-    conn: &Conn,
+    conn: &Origin,
     canonical: Canonical,
     account: Option<AccountMeta>,
     request: Option<embr_policy::Request>,
     reply: ReplyKind,
     timeout: Duration,
+    extra: crate::state::PendingExtra,
 ) -> Result<(u64, oneshot::Receiver<Done>), RpcError> {
     let l = &shared.cfg.limits;
     if g.pending_of(&conn.client) >= l.pending_per_client || g.pending.len() >= l.pending_total {
@@ -554,7 +585,7 @@ fn enqueue(
         .as_ref()
         .and_then(|a| a.pubkey_hex.parse::<Pubkey32>().ok());
     let digest = canonical.digest(&conn.client, acct32.as_ref());
-    let view = canonical.view(
+    let mut view = canonical.view(
         id,
         digest,
         ident(conn),
@@ -562,6 +593,7 @@ fn enqueue(
         now,
         now + timeout.as_secs().max(1),
     );
+    view.text_preview = extra.text.clone().or(view.text_preview);
     let (tx, rx) = oneshot::channel();
     g.pending.insert(
         id,
@@ -575,6 +607,8 @@ fn enqueue(
             account: account.map(|a| a.id),
             reply,
             tx: Some(tx),
+            fixed_account: extra.fixed_account,
+            nostrconnect: extra.nostrconnect,
         },
     );
     shared.emit(ControlEvent::PendingAdded {
@@ -583,18 +617,14 @@ fn enqueue(
     Ok((id, rx))
 }
 
-fn submit(shared: &Arc<Shared>, conn: &Arc<Conn>, req: &Request) -> Submitted {
+pub(crate) fn submit(shared: &Arc<Shared>, conn: &Origin, req: &Request) -> Submitted {
     match submit_inner(shared, conn, req) {
         Ok(s) => s,
         Err(e) => Submitted::Done(Err(e)),
     }
 }
 
-fn submit_inner(
-    shared: &Arc<Shared>,
-    conn: &Arc<Conn>,
-    req: &Request,
-) -> Result<Submitted, RpcError> {
+fn submit_inner(shared: &Arc<Shared>, conn: &Origin, req: &Request) -> Result<Submitted, RpcError> {
     let timeout = timeout_of(shared, req);
     let limits = shared.crypto_limits();
     let mut g = shared.lock();
@@ -666,7 +696,17 @@ fn submit_inner(
                 .collect();
             let name = label.map_or_else(|| conn.client_name.clone(), |l| sanitize(l.trim(), 64));
             let canonical = Canonical::Pair { name, permissions };
-            let (id, rx) = enqueue(shared, &mut g, conn, canonical, None, None, reply, timeout)?;
+            let (id, rx) = enqueue(
+                shared,
+                &mut g,
+                conn,
+                canonical,
+                None,
+                None,
+                reply,
+                timeout,
+                crate::state::PendingExtra::default(),
+            )?;
             Ok(Submitted::Wait { id, rx, timeout })
         }
         "list_accounts" => {
@@ -687,7 +727,7 @@ fn submit_inner(
             g.persist_policy()?;
             g.audit(&AuditRecord {
                 ts: now,
-                via: "local".into(),
+                via: conn.via.into(),
                 client: Some(conn.client),
                 client_name: Some(conn.client_name.clone()),
                 account: None,
@@ -769,7 +809,7 @@ fn submit_inner(
                         .map_err(crate::state::map_vault_err)??;
                     g.audit(&AuditRecord {
                         ts: now,
-                        via: "local".into(),
+                        via: conn.via.into(),
                         client: Some(conn.client),
                         client_name: Some(conn.client_name.clone()),
                         account: Some(meta.id),
@@ -784,7 +824,7 @@ fn submit_inner(
                 Verdict::Deny { grant } => {
                     g.audit(&AuditRecord {
                         ts: now,
-                        via: "local".into(),
+                        via: conn.via.into(),
                         client: Some(conn.client),
                         client_name: Some(conn.client_name.clone()),
                         account: Some(meta.id),
@@ -809,6 +849,7 @@ fn submit_inner(
                         Some(preq),
                         ReplyKind::Operation,
                         timeout,
+                        crate::state::PendingExtra::default(),
                     )?;
                     Ok(Submitted::Wait { id, rx, timeout })
                 }

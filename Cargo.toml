@@ -35,6 +35,7 @@ embr-policy = { path = "crates/embr-policy", version = "0.0.1" }
 embr-ipc = { path = "crates/embr-ipc", version = "0.0.1" }
 embr-platform = { path = "crates/embr-platform", version = "0.0.1" }
 embr-client = { path = "crates/embr-client", version = "0.0.1" }
+embr-nip46 = { path = "crates/embr-nip46", version = "0.0.1" }
 
 # Third-party (versions resolved by `cargo add`, see Cargo.lock)
 thiserror = "2"

@@ -16,6 +16,7 @@ embr-crypto = { path = "../crates/embr-crypto" }
 embr-vault = { path = "../crates/embr-vault" }
 embr-policy = { path = "../crates/embr-policy" }
 embr-ipc = { path = "../crates/embr-ipc" }
+embr-nip46 = { path = "../crates/embr-nip46" }
 
 # Detach from the main workspace (cargo-fuzz needs nightly and its own profile).
 [workspace]
@@ -56,5 +57,17 @@ doc = false
 [[bin]]
 name = "auth_proof"
 path = "fuzz_targets/auth_proof.rs"
+test = false
+doc = false
+
+[[bin]]
+name = "nip46_uri"
+path = "fuzz_targets/nip46_uri.rs"
+test = false
+doc = false
+
+[[bin]]
+name = "nip46_event"
+path = "fuzz_targets/nip46_event.rs"
 test = false
 doc = false

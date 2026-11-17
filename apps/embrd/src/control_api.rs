@@ -34,7 +34,7 @@ use crate::state::{
 const MAX_CONTROL_CONNECTIONS: usize = 16;
 
 /// Policy and settings blobs read while unlocking.
-type LoadedBlobs = (Option<Vec<u8>>, Option<Vec<u8>>);
+type LoadedBlobs = (Option<Vec<u8>>, Option<Vec<u8>>, Option<Vec<u8>>);
 
 struct ConnState {
     auth_epoch: Option<u64>,
@@ -417,13 +417,37 @@ async fn handle(
         }
         "get_settings" => Ok(serde_json::to_value(&shared.lock().settings).unwrap_or(Value::Null)),
         "set_settings" => {
-            let s: Settings = parse_params(params)?;
+            let mut s: Settings = parse_params(params)?;
             s.validate().map_err(|m| rpc(ErrorCode::InvalidParams, m))?;
+            // Relays: normalise, drop duplicates, and refuse anything but wss:// (or loopback ws://).
+            let mut relays = Vec::new();
+            for r in &s.relays {
+                let r = embr_nip46::uri::validate_relay(r)
+                    .map_err(|e| rpc(ErrorCode::InvalidParams, &e.to_string()))?;
+                if !relays.contains(&r) {
+                    relays.push(r);
+                }
+            }
+            s.relays = relays;
             let mut g = shared.lock();
             g.settings = s;
             g.persist_settings()?;
             g.audit_admin("set_settings", None);
+            drop(g);
+            shared.activity.notify_one();
+            crate::nip46::sync(shared); // start/stop/update the relay service
             Ok(json!(true))
+        }
+        "nip46_status" => {
+            Ok(serde_json::to_value(crate::nip46::status(shared)).unwrap_or(Value::Null))
+        }
+        "nip46_bunker" => {
+            let p: embr_ipc::control::Nip46BunkerParams = parse_params(params)?;
+            crate::nip46::create_bunker(shared, p.account)
+        }
+        "nip46_connect" => {
+            let p: embr_ipc::control::Nip46ConnectParams = parse_params(params)?;
+            crate::nip46::import_nostrconnect(shared, &p.uri, p.account).await
         }
         "recent_log" => {
             let p: LogParams = parse_params(params)?;
@@ -447,9 +471,12 @@ fn remove_account(shared: &Arc<Shared>, id: AccountId) -> Result<(), RpcError> {
     g.vault_mut()?.remove_account(id).map_err(map_vault_err)?;
     g.policy.remove_account(id);
     g.persist_policy()?;
+    g.nip46.remove_account(id);
+    let _ = crate::nip46::persist(&mut g);
     g.cancel_pending_where(shared, "the account was removed", |e| e.account == Some(id));
     g.audit_admin("remove_account", None);
     drop(g);
+    crate::nip46::sync(shared);
     shared.emit(ControlEvent::AccountsChanged);
     shared.emit(ControlEvent::ClientsChanged);
     Ok(())
@@ -469,6 +496,7 @@ fn policy_change(shared: &Arc<Shared>, method: &str, key: Pubkey32) -> Result<()
     g.persist_policy()?;
     if method != "unblock_client" {
         g.cancel_pending_where(shared, "the client was revoked", |e| e.client == key);
+        crate::nip46::forget_client(&mut g, &key);
     }
     g.audit(&AuditRecord {
         ts: now_secs(),
@@ -507,7 +535,11 @@ async fn unlock(shared: &Arc<Shared>, password: String) -> Result<String, RpcErr
                 Ok(None)
             } else {
                 v.unlock(&password)?;
-                Ok(Some((v.blob(POLICY_BLOB)?, v.blob(SETTINGS_BLOB)?)))
+                Ok(Some((
+                    v.blob(POLICY_BLOB)?,
+                    v.blob(SETTINGS_BLOB)?,
+                    v.blob(crate::nip46::NIP46_BLOB)?,
+                )))
             }
         })
         .await?;
@@ -525,7 +557,8 @@ async fn unlock(shared: &Arc<Shared>, password: String) -> Result<String, RpcErr
             let mut g = shared.lock();
             g.note_unlock_success();
             let newly = loaded.is_some();
-            if let Some((policy, settings)) = loaded {
+            if let Some((policy, settings, nip46_blob)) = loaded {
+                g.nip46 = crate::nip46::Nip46State::load(nip46_blob);
                 g.policy = policy
                     .as_deref()
                     .and_then(|b| Engine::from_json(b, now_secs()).ok())
@@ -545,6 +578,7 @@ async fn unlock(shared: &Arc<Shared>, password: String) -> Result<String, RpcErr
             shared.activity.notify_one();
             if newly {
                 shared.emit(ControlEvent::Unlocked);
+                crate::nip46::sync(shared); // starts the relay service only if remote signing is enabled
             }
             Ok(token)
         }
@@ -609,6 +643,8 @@ fn decide(shared: &Arc<Shared>, p: DecideParams) -> Done {
     }
     let kind = entry.view.kind;
     let (client, session, reply) = (entry.client, entry.session, entry.reply);
+    let (fixed_account, nostrconnect) = (entry.fixed_account, entry.nostrconnect.clone());
+    let via = entry.view.client.via.clone();
     let name = entry.view.client.name.clone();
     let preq = entry.request;
 
@@ -638,16 +674,28 @@ fn decide(shared: &Arc<Shared>, p: DecideParams) -> Done {
                     .find(|a| a.id == account)
                     .ok_or_else(|| rpc(ErrorCode::AccountNotFound, "no such account"))?
                     .clone();
+                if fixed_account.is_some_and(|f| f != account) {
+                    return Err(rpc(
+                        ErrorCode::InvalidParams,
+                        "this connection is bound to a specific account; approve it with that account",
+                    ));
+                }
                 g.policy
-                    .pair(client, &name, vec![account], now)
+                    .pair_via(client, &name, vec![account], now, &via)
                     .map_err(policy_err)?;
                 g.persist_policy()?;
+                if via == "nip46" {
+                    crate::nip46::after_pairing_approved(shared, &mut g, client, nostrconnect);
+                }
                 let result = match reply {
                     ReplyKind::GetPublicKey => json!(meta.pubkey_hex),
                     _ => json!({"paired": true, "account": meta.pubkey_hex}),
                 };
                 g.resolve(shared, p.id, Ok(result), "approved", AuditOutcome::Paired);
                 drop(g);
+                if via == "nip46" {
+                    crate::nip46::sync(shared); // listen on the client's relays, now that it is approved
+                }
                 shared.emit(ControlEvent::ClientsChanged);
                 Ok(json!({"decided": "pair"}))
             }

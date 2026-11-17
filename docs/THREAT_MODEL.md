@@ -120,7 +120,7 @@ steal. Precisely:
 > the same user — or run it in a sandbox (Flatpak, firejail, separate user) that cannot reach the
 > socket.
 
-### A5/A6 — NIP-46 (M5; off by default)
+### A5/A6 — NIP-46 (**implemented in Milestone 5**; off by default; tests listed in `SECURITY.md`)
 * Nothing connects to a relay unless remote signing is **enabled by the user and configured**.
 * Transport per NIP-46: kind `24133`, NIP-44 encryption, ephemeral/separate **signer keypair**
   (never the user key) so the signer's pubkey is not the user's pubkey (A5 cannot trivially correlate).

@@ -15,7 +15,8 @@ use embr_client::ClientError;
 use embr_client::control::ControlClient;
 use embr_core::{AccountId, AccountMeta};
 use embr_ipc::control::{
-    ClientView, ControlEvent, DecisionWire, PendingKind, PendingView, VaultState,
+    ClientView, ControlEvent, DecisionWire, Nip46Status, PendingKind, PendingView, Settings,
+    VaultState,
 };
 use serde_json::{Value, json};
 
@@ -72,6 +73,50 @@ enum Cmd {
     },
     /// Write an encrypted backup of the vault (absolute path; must not exist).
     Backup { path: PathBuf },
+    /// NIP-46 remote signing (off by default: nothing touches the network until you enable it).
+    Remote {
+        #[command(subcommand)]
+        cmd: RemoteCmd,
+    },
+}
+
+#[derive(Subcommand)]
+enum RemoteCmd {
+    /// Show whether remote signing is on, the relays and their connection state.
+    Status,
+    /// Turn remote signing on (needs at least one relay).
+    Enable,
+    /// Turn remote signing off (disconnects from all relays).
+    Disable,
+    /// List, add or remove the relays used for remote signing.
+    Relays {
+        #[command(subcommand)]
+        cmd: Option<RelayCmd>,
+    },
+    /// Create a single-use `bunker://` URI for an account (paste it into the app).
+    Bunker {
+        /// Account id (prefix), label or public key.
+        account: String,
+        /// Also print the URI as a QR code.
+        #[arg(long)]
+        qr: bool,
+    },
+    /// Import a `nostrconnect://` URI created by an app, and approve it in `embrctl watch`.
+    Connect {
+        /// The `nostrconnect://` URI.
+        uri: String,
+        /// Account the app will use.
+        #[arg(long)]
+        account: String,
+    },
+}
+
+#[derive(Subcommand)]
+enum RelayCmd {
+    /// Add a relay (`wss://…`, or `ws://` to localhost).
+    Add { url: String },
+    /// Remove a relay.
+    Remove { url: String },
 }
 
 #[derive(Subcommand)]
@@ -440,6 +485,7 @@ fn run(cli: Cli) -> Res<()> {
                 );
             }
         }
+        Cmd::Remote { cmd } => remote(&cli, cmd)?,
         Cmd::Backup { path } => {
             let mut s = authed(&cli)?;
             s.c.call("export_backup", json!({"dest": path.display().to_string()}))
@@ -447,6 +493,158 @@ fn run(cli: Cli) -> Res<()> {
             println!(
                 "Encrypted backup written to {}. It is protected by your CURRENT vault password.",
                 path.display()
+            );
+        }
+    }
+    Ok(())
+}
+
+fn settings_of(c: &mut ControlClient) -> Res<Settings> {
+    let v = c.call("get_settings", json!({})).map_err(e)?;
+    serde_json::from_value(v).map_err(|x| x.to_string())
+}
+
+fn save_settings(c: &mut ControlClient, s: &Settings) -> Res<()> {
+    c.call(
+        "set_settings",
+        serde_json::to_value(s).map_err(|x| x.to_string())?,
+    )
+    .map(|_| ())
+    .map_err(e)
+}
+
+fn print_qr(text: &str) {
+    match qrcode::QrCode::new(text.as_bytes()) {
+        Ok(code) => {
+            let img = code
+                .render::<qrcode::render::unicode::Dense1x2>()
+                .quiet_zone(true)
+                .build();
+            println!("{img}");
+        }
+        Err(err) => eprintln!("(cannot render a QR code: {err})"),
+    }
+}
+
+fn remote(cli: &Cli, cmd: &RemoteCmd) -> Res<()> {
+    let mut s = authed(cli)?;
+    match cmd {
+        RemoteCmd::Status => {
+            let st: Nip46Status =
+                serde_json::from_value(s.c.call("nip46_status", json!({})).map_err(e)?)
+                    .map_err(|x| x.to_string())?;
+            let settings = settings_of(&mut s.c)?;
+            println!(
+                "remote signing: {}",
+                if st.enabled { "ON" } else { "off (default)" }
+            );
+            println!(
+                "service:        {}",
+                if st.running { "running" } else { "not running" }
+            );
+            if settings.relays.is_empty() {
+                println!("relays:         none configured (`embrctl remote relays add wss://…`)");
+            }
+            if st.relays.iter().any(|r| {
+                r.detail
+                    .as_deref()
+                    .is_some_and(|d| d.contains("Address family not supported"))
+            }) {
+                println!(
+                    "hint: the service sandbox forbids network sockets (it allows AF_UNIX only by default)."
+                );
+                println!(
+                    "      Install the drop-in from docs/NIP46.md (embrd-remote.conf) and restart embrd."
+                );
+            }
+            for r in &st.relays {
+                println!(
+                    "  {}  {}{}",
+                    r.url,
+                    r.state,
+                    r.detail
+                        .as_deref()
+                        .map(|d| format!(" ({d})"))
+                        .unwrap_or_default()
+                );
+            }
+            for sg in &st.signers {
+                println!(
+                    "signer key for account {}: {}  (a transport key, not your user key)",
+                    sg.account, sg.transport_pubkey
+                );
+            }
+        }
+        RemoteCmd::Enable => {
+            let mut st = settings_of(&mut s.c)?;
+            if st.relays.is_empty() {
+                return Err(
+                    "add at least one relay first: `embrctl remote relays add wss://…`".into(),
+                );
+            }
+            st.remote_signing_enabled = true;
+            save_settings(&mut s.c, &st)?;
+            println!("Remote signing is ON. Pair apps with `embrctl remote bunker <account>`.");
+            println!(
+                "(If you run embrd under systemd, its sandbox must allow network sockets: see docs/NIP46.md.)"
+            );
+        }
+        RemoteCmd::Disable => {
+            let mut st = settings_of(&mut s.c)?;
+            st.remote_signing_enabled = false;
+            save_settings(&mut s.c, &st)?;
+            println!("Remote signing is off; the daemon disconnected from all relays.");
+        }
+        RemoteCmd::Relays { cmd } => {
+            let mut st = settings_of(&mut s.c)?;
+            match cmd {
+                None => {
+                    if st.relays.is_empty() {
+                        println!("(no relays)");
+                    }
+                    for r in &st.relays {
+                        println!("{r}");
+                    }
+                }
+                Some(RelayCmd::Add { url }) => {
+                    st.relays.push(url.clone());
+                    save_settings(&mut s.c, &st)?;
+                    println!("Added.");
+                }
+                Some(RelayCmd::Remove { url }) => {
+                    st.relays
+                        .retain(|r| r.trim_end_matches('/') != url.trim_end_matches('/'));
+                    save_settings(&mut s.c, &st)?;
+                    println!("Removed.");
+                }
+            }
+        }
+        RemoteCmd::Bunker { account, qr } => {
+            let a = resolve_account(&mut s.c, account)?;
+            let v =
+                s.c.call("nip46_bunker", json!({"account": a.id.to_string()}))
+                    .map_err(e)?;
+            let uri = v["uri"].as_str().unwrap_or_default();
+            println!("{uri}");
+            if *qr {
+                print_qr(uri);
+            }
+            eprintln!(
+                "Single-use, valid {} minutes. The app will then appear in `embrctl watch` for you to approve.",
+                v["expires_in_secs"].as_u64().unwrap_or(600) / 60
+            );
+        }
+        RemoteCmd::Connect { uri, account } => {
+            let a = resolve_account(&mut s.c, account)?;
+            let v =
+                s.c.call(
+                    "nip46_connect",
+                    json!({"uri": uri, "account": a.id.to_string()}),
+                )
+                .map_err(e)?;
+            println!(
+                "Pending approval #{}: review it in `embrctl watch` (the relays in the URI are contacted only if you approve).",
+                v["pending_id"]
             );
         }
     }
@@ -469,7 +667,17 @@ fn describe(v: &PendingView) {
     }
     match v.kind {
         PendingKind::Pair => {
-            println!("  wants to PAIR with this signer.");
+            println!(
+                "  wants to PAIR with this signer{}.",
+                if v.client.via == "nip46" {
+                    " over NIP-46 (remote)"
+                } else {
+                    ""
+                }
+            );
+            if let Some(t) = &v.text_preview {
+                println!("  {t}");
+            }
             if !v.requested_permissions.is_empty() {
                 println!("  it asks for: {}", v.requested_permissions.join(", "));
             }

@@ -23,6 +23,7 @@ embr-vault.workspace = true
 embr-policy.workspace = true
 embr-ipc = { workspace = true, features = ["tokio"] }
 embr-platform.workspace = true
+embr-nip46.workspace = true
 thiserror.workspace = true
 serde.workspace = true
 serde_json.workspace = true
@@ -34,8 +35,11 @@ tokio = { version = "1", default-features = false, features = ["rt-multi-thread"
 tokio-util = { version = "0.7", default-features = false }
 
 [dev-dependencies]
+embr-nip46 = { workspace = true, features = ["testing"] }
 embr-client.workspace = true
 tempfile = "3"
+tokio-tungstenite = { version = "0.30", default-features = false, features = ["handshake"] }
+futures-util = { version = "0.3", default-features = false, features = ["std", "sink"] }
 
 [lints]
 workspace = true

@@ -19,9 +19,11 @@ embr-client.workspace = true
 embr-policy.workspace = true
 clap = { version = "4", default-features = false, features = ["std", "derive", "help", "usage", "error-context", "suggestions"] }
 rpassword = "7"
+qrcode = { version = "0.14", default-features = false }
 serde_json.workspace = true
 
 [dev-dependencies]
+embr-nip46 = { workspace = true, features = ["testing"] }
 embrd = { path = "../embrd", version = "0.0.1" }
 tokio = { version = "1", default-features = false, features = ["rt-multi-thread", "macros", "time"] }
 tempfile = "3"

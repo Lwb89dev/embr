@@ -8,7 +8,7 @@ cargo +nightly fuzz run ipc_lines -- -max_total_time=300     # targets: ipc_line
 
 ## Running
 ```bash
-cargo test --workspace                  # unit + integration + e2e (151 tests at Milestone 3; ~30 s)
+cargo test --workspace                  # unit + integration + e2e (180 tests; ~45 s)
 cargo clippy --workspace --all-targets -- -D warnings
 cargo fmt --all -- --check
 cargo deny check                        # advisories, licences, bans, sources (needs: cargo install cargo-deny --locked)
@@ -33,7 +33,11 @@ tests/interop/run.sh                    # needs Node >= 20; installs nostr-tools
 | `embr-platform` | 5 | private directories, instance lock, hardening visible in `/proc` (child process) |
 | `embr-client` | 2 | client-key file creation/permissions |
 | `embrd` unit + **e2e** | 4 + **19** | real daemon, real sockets: pairing, grants, isolation, lock, restart, concurrency, hostile IPC, limits (see `SECURITY.md` for the list) |
-| `embrctl` e2e | 1 | the CLI against a real daemon, including terminal approvals |
+| `embrctl` e2e | 2 | the CLI against a real daemon: terminal approvals; opt-in remote signing and `bunker://` + QR |
+| `embr-nip46` unit | 11 | URI parsing (hostile URIs), NIP-44 JSON-RPC protocol (strictness, addressing, forged events), relay-URL regression from a fuzzer finding |
+| `embr-nip46/service` | 7 | the signer service against an in-process relay: round trip, replay, stale/future, rate limit before decryption, NIP-42 AUTH, reconnection after an outage, silence without relays |
+| `embrd/nip46` e2e | 7 | NIP-46 through the real daemon: bunker pairing, signing and encryption with approvals, single-use secrets, account isolation by transport key, `nostrconnect://` (relays contacted only after approval), off-by-default/lock behaviour, revocation, replay/flood/outage |
+| `embrd/nip46_interop` | 2 | **nostr-tools `BunkerSigner` (independent JS client)** via `bunker://` and `nostrconnect://` |
 
 **Mutation check (manual):** three deliberate defects were injected into the vault; two were
 caught by tests, one (AAD over KDF fields) is redundant by design and was documented as such.
@@ -48,14 +52,17 @@ caught by tests, one (AAD over KDF fields) is redundant by design and was docume
 ## Not yet covered (honest list)
 * macOS and Windows have **never been run** — the CI matrix exists but has not executed. Unix-only
   tests (`0600`/`0700`) are `cfg(unix)`; the atomic-create race test is unverified on Windows.
-* No GUI or NIP-46 tests exist because those components don't yet.
+* No GUI tests exist because there is no GUI yet.
+* NIP-46 `wss://` (TLS) is **not exercised** by any test (all use loopback `ws://`); real public relays are untested.
 * The e2e suite uses real time for expiry/auto-lock (≈2 s waits); it passed 3 consecutive runs on
   2026-11-17 on Linux, but timing tests can flake on a heavily loaded CI machine.
 * Unix sockets only: Windows named pipes (and their DACL) are untested because unwritten.
-* **Fuzzing is minimal so far.** `fuzz/` holds six libFuzzer targets (IPC framing + every strict wire type,
+* **Fuzzing is minimal so far.** `fuzz/` holds eight libFuzzer targets (IPC framing + every strict wire type,
   event templates incl. sign-and-verify, vault file parsing, stored policy JSON with a default-deny/DM-kind
-  invariant, key/ciphertext parsing, handshake proofs). Each ran **40 s locally on 2026-11-17: ≈16.4 M
-  executions in total, no crash/timeout/OOM** — a smoke test, not assurance. No seed corpora, no structure-aware
+  invariant, key/ciphertext parsing, handshake proofs, NIP-46 URIs/relay URLs, NIP-46 events). The first six ran
+  40 s each and the NIP-46 ones 60 s each (after a fix, see below) on 2026-11-17: ≈26 M executions in total.
+  **The NIP-46 URI target found a real bug within its first 40 s** (relay URL validation); after the fix both
+  NIP-46 targets ran clean. Still a smoke test, not assurance. No seed corpora, no structure-aware
   mutators, no sanitizers beyond libFuzzer's defaults. A weekly 5-minute-per-target CI run is configured but has
   not executed yet. NIP-46 message parsing will get its own target with Milestone 5.
 * No test of OS suspend/resume, SIGKILL/crash recovery beyond stale-socket cleanup, package upgrade/uninstall.

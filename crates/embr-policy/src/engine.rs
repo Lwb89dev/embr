@@ -100,6 +100,13 @@ pub struct ClientRecord {
     pub created_at: u64,
     /// Last request time.
     pub last_seen: u64,
+    /// Transport the client paired over: `"local"` or `"nip46"`.
+    #[serde(default = "default_via")]
+    pub via: String,
+}
+
+fn default_via() -> String {
+    "local".to_owned()
 }
 
 /// What is being asked.
@@ -264,6 +271,18 @@ impl Engine {
         accounts: Vec<AccountId>,
         now: u64,
     ) -> Result<(), PolicyError> {
+        self.pair_via(key, name, accounts, now, "local")
+    }
+
+    /// Like [`Engine::pair`], recording the transport the client paired over.
+    pub fn pair_via(
+        &mut self,
+        key: Pubkey32,
+        name: &str,
+        accounts: Vec<AccountId>,
+        now: u64,
+        via: &str,
+    ) -> Result<(), PolicyError> {
         if self.blocked.contains(&key) {
             return Err(PolicyError::Blocked);
         }
@@ -272,6 +291,7 @@ impl Engine {
             c.name = name;
             c.accounts = accounts;
             c.last_seen = now;
+            c.via = via.to_owned();
             return Ok(());
         }
         if self.clients.len() >= MAX_CLIENTS {
@@ -283,6 +303,7 @@ impl Engine {
             accounts,
             created_at: now,
             last_seen: now,
+            via: via.to_owned(),
         });
         Ok(())
     }

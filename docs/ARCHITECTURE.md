@@ -61,7 +61,7 @@ separation of concerns.
 | `embr-ipc` | Wire protocol: framing with size limit, handshake, client proof of possession (signed event), request/response types, error codes, control-channel types. No I/O. | **[built]** 21 tests |
 | `embr-platform` | OS glue: private runtime/data directories, instance lock, process hardening, peer hints. Safe `rustix` wrappers only (no `unsafe` was needed). Unix only so far. | **[built]** 5 tests |
 | `embr-client` | Blocking SDK for third-party Rust apps + control-channel client + client-key file helper. | **[built]**, example app |
-| `embr-nip46` | NIP-46 signer: relay pool, pairing, `connect`, auth challenges, replay protection. | **[planned]** |
+| `embr-nip46` | NIP-46: URIs, NIP-44 JSON-RPC over kind 24133, small relay client (rustls, NIP-42 AUTH, reconnection), signer service with replay/freshness/rate-limit defences, in-process test relay. | **[built]** 12 tests + daemon e2e |
 | `apps/embrd` | The daemon: two sockets, policy, approvals queue, audit log, idle auto-lock, throttled unlock. | **[built]** 23 tests (19 e2e) |
 | `apps/embrctl` | CLI + terminal approval UI (`watch`). | **[built]** 1 e2e test |
 | `apps/embr` | Desktop GUI (ADR-3). | **[planned]** |
@@ -173,6 +173,15 @@ the threat model).
 *Decided, from findings F1/F2 in `RESEARCH.md`.* Where independent implementations disagree (event ids
 with control characters; NIP-44 plaintext > 65 535 bytes) the signer picks the interoperable
 behaviour by default and makes the alternative an explicit, documented option.
+
+### ADR-9 — TLS for relays: rustls with `ring`, only inside `embr-nip46`
+*Decided (the maintainer did not answer the question, so the safest default was taken).* NIP-46 needs
+`wss://`. OpenSSL/native-tls would add a C TLS stack to the trust base; `rustls` is memory-safe Rust. Its
+crypto provider here is `ring` (not `aws-lc-rs`, which needs a heavier C/asm build). `deny.toml` therefore
+allows `ring` **only as a dependency of `rustls`/`rustls-webpki`** and allows the `CDLA-Permissive-2.0`
+data licence of the Mozilla root list. TLS only protects metadata in transit: NIP-46 payloads are
+NIP-44-encrypted end to end, key material never touches `ring`, and a minimal hand-written relay client
+(~300 lines) was preferred over pulling the full `nostr-sdk` relay pool (database layers, gossip, NIP-65).
 
 ### ADR-8 — MSRV follows security fixes, not the other way round
 *Decided.* `rust-version = 1.87`, set because a RustSec advisory (`ctutils`, a constant-time

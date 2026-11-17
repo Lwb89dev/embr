@@ -8,4 +8,6 @@ root="$(cd ../.. && pwd)"
 [ -d node_modules ] || npm ci --ignore-scripts
 node gen_vectors.mjs                                  # regenerate (random nonces/signatures)
 (cd "$root" && cargo test -p embr-crypto --test interop)
+# NIP-46: nostr-tools as an independent *client* of the Embr daemon (both pairing flows).
+(cd "$root" && EMBR_REQUIRE_INTEROP=1 cargo test -p embrd --test nip46_interop)
 node verify_rust.mjs "$root/target/interop/rust_out.json"

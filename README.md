@@ -4,9 +4,10 @@
 <p align="center"><b>A native, cross-platform Nostr signer for the desktop.</b><br>
 Your private key stays in one small, encrypted, local process. Apps ask it to sign — they never see the key.</p>
 
-> **Status: pre-alpha, Milestone 3 of 7.** Cryptographic core, encrypted vault, permission engine,
-> signer daemon with authenticated local IPC, client SDK and a terminal control/approval CLI are built
-> and tested on Linux. There is **no GUI, no NIP-46, no Windows support and no installable package yet.**
+> **Status: pre-alpha.** Cryptographic core, encrypted vault, permission engine, signer daemon with
+> authenticated local IPC, NIP-46 remote signing (off by default), client SDK and a terminal control/approval
+> CLI are built and tested on Linux; an Arch package exists. There is **no GUI, no Windows support and no
+> `.deb`/`.rpm`/macOS/Windows installer yet.**
 > It has **not been audited** — do not trust it with a key you cannot afford to lose.
 > Read [`docs/SECURITY.md`](docs/SECURITY.md) and [`docs/THREAT_MODEL.md`](docs/THREAT_MODEL.md).
 
@@ -30,9 +31,9 @@ off unless you turn it on.
 |---|---|---|
 | 1 | Research, threat model, architecture, workspace | **done** (this repo) |
 | 2 | Crypto core, encrypted vault, accounts, import/export, tests | **done** — official vectors, interop with `nostr-tools` |
-| 3 | Daemon, authenticated local IPC, policy engine, SDK, example client, CLI | **done on Linux/macOS** — 151 tests incl. 19 end-to-end; Windows named pipes still open |
+| 3 | Daemon, authenticated local IPC, policy engine, SDK, example client, CLI | **done on Linux/macOS** — Windows named pipes still open |
 | 4 | Desktop GUI, approvals, tray, notifications | planned |
-| 5 | NIP-46 remote signing | planned |
+| 5 | NIP-46 remote signing | **done on Linux/macOS** — `bunker://` + `nostrconnect://`, interop with nostr-tools ([`docs/NIP46.md`](docs/NIP46.md)) |
 | 6 | `.deb`, `.rpm`, Arch `PKGBUILD`, Windows installer, macOS `.dmg` (no AppImage) | planned |
 | 7 | Fuzzing, benchmarks, dependency review, release docs | planned |
 
@@ -64,7 +65,7 @@ protocol in [`docs/LOCAL_SIGNER_API.md`](docs/LOCAL_SIGNER_API.md) from any lang
 ## Build and test
 ```bash
 # Rust is pinned in rust-toolchain.toml (rustup installs it automatically)
-cargo test --workspace            # 151 tests (the e2e suite takes ~30 s)
+cargo test --workspace            # 180 tests (the e2e suites take ~45 s)
 cargo clippy --workspace --all-targets -- -D warnings
 cargo deny check                  # licences, advisories, bans, sources
 tests/interop/run.sh              # two-way interop with nostr-tools (needs Node ≥ 20)

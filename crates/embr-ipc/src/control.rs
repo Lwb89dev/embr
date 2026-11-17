@@ -68,6 +68,10 @@ pub struct Settings {
     pub notifications: bool,
     /// NIP-46 remote signing (off by default; nothing connects to relays while false).
     pub remote_signing_enabled: bool,
+    /// Relays used for NIP-46 (`wss://…`, or `ws://` to loopback). Empty by default: with no relays
+    /// configured nothing connects even if remote signing is enabled.
+    #[serde(default)]
+    pub relays: Vec<String>,
 }
 
 impl Default for Settings {
@@ -76,6 +80,7 @@ impl Default for Settings {
             lock_timeout_secs: 15 * 60,
             notifications: true,
             remote_signing_enabled: false,
+            relays: Vec::new(),
         }
     }
 }
@@ -85,6 +90,9 @@ impl Settings {
     pub fn validate(&self) -> Result<(), &'static str> {
         if self.lock_timeout_secs != 0 && !(30..=86_400).contains(&self.lock_timeout_secs) {
             return Err("lock timeout must be 0 (never) or between 30 s and 24 h");
+        }
+        if self.relays.len() > 8 || self.relays.iter().any(|r| r.len() > 256) {
+            return Err("at most 8 relays, each at most 256 characters");
         }
         Ok(())
     }
@@ -400,6 +408,56 @@ params!(
         limit: usize,
     }
 );
+
+params!(
+    /// `nip46_bunker`.
+    Nip46BunkerParams {
+        /// Account the connection is for.
+        account: AccountId,
+    }
+);
+params!(
+    /// `nip46_connect`.
+    Nip46ConnectParams {
+        /// A `nostrconnect://` URI created by a client.
+        uri: String,
+        /// Account the client will be bound to.
+        account: AccountId,
+    }
+);
+
+/// One relay's connection state.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct RelayView {
+    /// URL.
+    pub url: String,
+    /// `connecting`, `connected` or `failed`.
+    pub state: String,
+    /// Failure reason, if any.
+    pub detail: Option<String>,
+}
+
+/// A transport key of the NIP-46 signer (public part only).
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct SignerView {
+    /// Account it serves.
+    pub account: AccountId,
+    /// Transport public key (the `bunker://` pubkey) — **not** the user's key.
+    pub transport_pubkey: Pubkey32,
+}
+
+/// Result of `nip46_status`.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Nip46Status {
+    /// Remote signing enabled in the settings.
+    pub enabled: bool,
+    /// The relay service is running (enabled, unlocked, relays configured).
+    pub running: bool,
+    /// Relays.
+    pub relays: Vec<RelayView>,
+    /// Transport keys.
+    pub signers: Vec<SignerView>,
+}
 
 /// `decide`.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]

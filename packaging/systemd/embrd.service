@@ -42,8 +42,10 @@ RestrictSUIDSGID=yes
 LockPersonality=yes
 MemoryDenyWriteExecute=yes
 SystemCallArchitectures=native
-# Local signing needs only Unix sockets. NIP-46 (Milestone 5) will add AF_INET/AF_INET6 here —
-# and only when the user enables remote signing.
+# Local signing needs only Unix sockets. NIP-46 remote signing needs network sockets: it is OFF by
+# default, so this stays AF_UNIX-only until you install the drop-in packaging/systemd/embrd-remote.conf.
+# (Verified: with remote signing enabled under this restriction, the relay shows "failed (Address
+# family not supported)"; with the drop-in it connects.)
 RestrictAddressFamilies=AF_UNIX
 
 [Install]

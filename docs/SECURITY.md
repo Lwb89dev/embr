@@ -1,8 +1,8 @@
 # Security
 
 > **Embr has not been independently audited and must not be described as production-ready.**
-> It is pre-alpha software at Milestone 3 of 7: a tested cryptographic core and vault, a daemon with
-> authenticated local IPC and a permission engine, a CLI; no GUI or NIP-46 yet, Linux/macOS only.
+> It is pre-alpha software: a tested cryptographic core and vault, a daemon with authenticated local IPC
+> and a permission engine, NIP-46 remote signing (off by default), a CLI; no GUI, Linux/macOS only.
 > Do not put a key you cannot afford to lose into any build of it.
 
 Read `THREAT_MODEL.md` first: it states what is and is not defended against, especially regarding
@@ -75,6 +75,35 @@ All of these are exercised end to end against a real `embrd` on real sockets
 | Audit log holds metadata only (no content, no signatures) | `login_pairing_and_signing_end_to_end`, CLI test |
 | Process hardening of the real binary: `RLIMIT_CORE=0`, `PR_SET_DUMPABLE=0`, `NO_NEW_PRIVS` | `embr-platform` test (checks `/proc`), manual run |
 
+## Implemented and tested in Milestone 5 (NIP-46)
+Details in `NIP46.md`; tests in `apps/embrd/tests/nip46*.rs` and `crates/embr-nip46/`.
+
+| Property | Test |
+|---|---|
+| Off by default and **silent**: no network connection with defaults, with "enabled but no relays", after disable, after lock | `remote_signing_is_off_by_default_silent_and_follows_the_vault_lock`, `nothing_connects_until_relays_are_set…` |
+| Transport key ≠ user key; the addressed transport key selects the account; a client of A cannot use B's key | `bunker_flow_…`, `a_client_cannot_use_another_accounts_transport_key` |
+| `bunker://` secrets are single-use, expire, and a bad/missing/reused secret gives **no prompt** | `secrets_are_single_use_and_unpaired_clients_get_nothing` |
+| Unpaired remote clients can only `connect`/`ping`; every operation still needs a grant or approval; decrypt flagged | `bunker_flow_…`, `secrets_are_single_use_…` |
+| `nostrconnect://`: relays of a URI are contacted **only after approval**; rejected URIs never connect; hostile URIs refused | `nostrconnect_import_contacts_client_relays_only_after_approval` |
+| Replay (same event id), stale/future `created_at`, forged signatures, wrong kind/addressee, undecryptable content are dropped before the policy engine; per-client rate limit applies **before decryption** and does not starve other clients | `hostile_events_are_dropped…`, `per_client_rate_limit_applies_before_decryption`, `replay_flood_and_relay_outage` |
+| Relay outage → automatic reconnection and resubscription; NIP-42 AUTH answered with the transport key | `reconnects_after_the_relay_drops_everyone`, `nip42_auth_relays_are_supported…` |
+| A lock answers in-flight remote requests, stops new ones, disconnects; pairings survive lock/unlock; revocation works | `revocation_blocking_and_lock_over_nip46` |
+| Independent client interop (nostr-tools), both flows | `nip46_interop.rs` |
+
+## Findings while building Milestones 5–7
+* **A fuzzer found a bug in relay-URL validation** (`nip46_uri`, within 40 s): the URL parser strips leading
+  control characters and percent-encodes others; the length limit was checked on the raw input but the
+  *normalised* (longer) form was what got stored and later failed re-validation. Fixed: control characters and
+  whitespace are refused up front, host names are validated label by label, and the normalised length is bounded;
+  the crash input is a regression test.
+* **Lock vs in-flight remote requests:** stopping the relay service immediately at lock meant pending remote
+  requests were never answered (the client hung). Now new requests stop at once, in-flight ones are answered, and
+  the connection closes after a 0.75 s drain.
+* **systemd sandbox vs NIP-46:** with the shipped `AF_UNIX`-only sandbox the relay cannot connect; the daemon
+  reports it clearly and the CLI points at the documented drop-in (verified both ways).
+* **`cargo-deny` on new dependencies:** the TLS stack needed an explicit, narrow exception for `ring` (only as
+  rustls' provider) and the `CDLA-Permissive-2.0` data licence of the Mozilla root list (ADR-9).
+
 ## Findings while building Milestone 3
 * **serde quirks that weaken "strict parsing":** `deny_unknown_fields` is *not* enforced for unit
   variants of internally tagged enums, and a struct also deserialises from a JSON *array*. Both were
@@ -89,6 +118,7 @@ All of these are exercised end to end against a real `embrd` on real sockets
   our policy; the three-line replacement lives in `embr-platform`.
 
 ## Known limitations (also in the threat model)
+* **Not verified for NIP-46:** `wss://` against a real public relay (TLS is compiled and linked but untested), Amber/`nak` interop.
 * **Milestone 3 gaps:** no Windows transport (named pipes with a user-only DACL); no spawn-bound
   clients; no `SO_PEERPIDFD`; passwords arrive in `String` fields of request structs (not zeroised;
   they also pass through `serde_json::Value`); the control token and client key files are plain

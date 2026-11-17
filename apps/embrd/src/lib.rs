@@ -21,6 +21,8 @@ mod client_api;
 #[cfg(unix)]
 mod control_api;
 #[cfg(unix)]
+mod nip46;
+#[cfg(unix)]
 mod server;
 #[cfg(unix)]
 mod state;

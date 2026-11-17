@@ -174,3 +174,90 @@ async fn cli_manages_the_vault_and_answers_approvals() {
     assert!(out(&ctl(&env, &["status"], "")).contains("Locked"));
     daemon.shutdown().await;
 }
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn cli_remote_signing_is_opt_in_and_creates_bunker_uris() {
+    let (env, cfg) = env();
+    let daemon = embrd::start(cfg).await.unwrap();
+    let relay = embr_nip46::testing::TestRelay::start(Default::default()).await;
+    let pw = format!("{PW}\n");
+    assert!(ctl(&env, &["init"], &pw).status.success());
+    assert!(
+        ctl(&env, &["accounts", "add", "main"], &pw)
+            .status
+            .success()
+    );
+
+    // Off by default; nothing touches the network.
+    let o = ctl(&env, &["remote", "status"], &pw);
+    assert!(
+        out(&o).contains("off (default)") && out(&o).contains("not running"),
+        "{}",
+        out(&o)
+    );
+    // Cannot enable without relays, and relays are validated.
+    let o = ctl(&env, &["remote", "enable"], &pw);
+    assert!(
+        !o.status.success() && err(&o).contains("relay"),
+        "{}",
+        err(&o)
+    );
+    assert!(
+        !ctl(&env, &["remote", "relays", "add", "ws://evil.example"], &pw)
+            .status
+            .success()
+    );
+    assert!(
+        !ctl(&env, &["remote", "bunker", "main"], &pw)
+            .status
+            .success(),
+        "no bunker while off"
+    );
+    assert_eq!(relay.total_connections(), 0);
+
+    assert!(
+        ctl(&env, &["remote", "relays", "add", &relay.url()], &pw)
+            .status
+            .success()
+    );
+    assert!(ctl(&env, &["remote", "enable"], &pw).status.success());
+    let o = ctl(&env, &["remote", "bunker", "main", "--qr"], &pw);
+    let text = out(&o);
+    assert!(o.status.success(), "{}", err(&o));
+    let uri = text
+        .lines()
+        .find(|l| l.starts_with("bunker://"))
+        .unwrap_or_default();
+    let parsed = embr_nip46::uri::BunkerUri::parse(uri).unwrap();
+    assert_eq!(parsed.relays.len(), 1);
+    assert!(parsed.secret.is_some());
+    assert!(
+        text.contains('\u{2588}') || text.contains('\u{2580}') || text.contains('\u{2584}'),
+        "a QR code is printed"
+    );
+    for _ in 0..100 {
+        if relay.connections() == 1 {
+            break;
+        }
+        tokio::time::sleep(std::time::Duration::from_millis(20)).await;
+    }
+    assert_eq!(relay.connections(), 1);
+    let o = ctl(&env, &["remote", "status"], &pw);
+    assert!(
+        out(&o).contains("ON")
+            && out(&o).contains("connected")
+            && out(&o).contains("transport key"),
+        "{}",
+        out(&o)
+    );
+
+    assert!(ctl(&env, &["remote", "disable"], &pw).status.success());
+    for _ in 0..100 {
+        if relay.connections() == 0 {
+            break;
+        }
+        tokio::time::sleep(std::time::Duration::from_millis(20)).await;
+    }
+    assert_eq!(relay.connections(), 0);
+    daemon.shutdown().await;
+}
