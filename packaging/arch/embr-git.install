@@ -1,0 +1,25 @@
+post_install() {
+  cat <<'MSG'
+==> Embr is installed. To use it:
+      systemctl --user enable --now embrd.service   # the signer daemon (runs as you, never as root)
+      embrctl init                                  # create your vault (choose a strong password)
+      embrctl accounts add main                     # or: embrctl accounts import <label>
+      embrctl watch                                 # approve requests from apps
+    Back up your keys:  embrctl accounts export <id>   (a forgotten password cannot be recovered)
+    Pre-alpha software, not audited: read /usr/share/doc/embr/docs/SECURITY.md
+MSG
+}
+
+post_upgrade() {
+  echo "==> Restart the daemon to use the new version:  systemctl --user restart embrd.service"
+  echo "    (the vault is locked again after a restart; your data in ~/.local/share/embr is never touched by upgrades)"
+}
+
+pre_remove() {
+  echo "==> Stop the daemon for your user if it is running:  systemctl --user disable --now embrd.service"
+}
+
+post_remove() {
+  echo "==> Your vault in ~/.local/share/embr was NOT removed. Delete it yourself only if you are sure"
+  echo "    you have exported/backed up your keys (embrctl accounts export)."
+}

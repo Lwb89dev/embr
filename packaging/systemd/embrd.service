@@ -1,0 +1,50 @@
+# Embr signer daemon — systemd *user* unit.
+# Install as ~/.config/systemd/user/embrd.service or /usr/lib/systemd/user/embrd.service, then:
+#   systemctl --user enable --now embrd.service
+# Optional: autostart is just this unit; Embr does not depend on systemd (you can run `embrd` yourself).
+[Unit]
+Description=Embr Nostr signer daemon
+Documentation=https://github.com/Lwb89dev/embr
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/embrd
+Restart=on-failure
+RestartSec=2
+
+# Sockets live in $XDG_RUNTIME_DIR/embr (created 0700 by systemd, removed on stop).
+RuntimeDirectory=embr
+RuntimeDirectoryMode=0700
+# The vault and the audit log are the only things the daemon writes. ReadWritePaths= requires the
+# directory to exist (a fresh user has none), so create it first, outside the sandbox ("+" prefix).
+ExecStartPre=+/usr/bin/mkdir -p -m 0700 %h/.local/share/embr
+ReadWritePaths=%h/.local/share/embr
+
+# --- Hardening (a crash while unlocked must not leave key material on disk or be debuggable) ---
+LimitCORE=0
+UMask=0077
+NoNewPrivileges=yes
+CapabilityBoundingSet=
+ProtectSystem=strict
+ProtectHome=read-only
+PrivateTmp=yes
+PrivateDevices=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectKernelLogs=yes
+ProtectControlGroups=yes
+ProtectClock=yes
+ProtectHostname=yes
+ProtectProc=invisible
+RestrictNamespaces=yes
+RestrictRealtime=yes
+RestrictSUIDSGID=yes
+LockPersonality=yes
+MemoryDenyWriteExecute=yes
+SystemCallArchitectures=native
+# Local signing needs only Unix sockets. NIP-46 (Milestone 5) will add AF_INET/AF_INET6 here —
+# and only when the user enables remote signing.
+RestrictAddressFamilies=AF_UNIX
+
+[Install]
+WantedBy=default.target

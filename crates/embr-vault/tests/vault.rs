@@ -1116,3 +1116,16 @@ fn a_failed_blob_write_is_rolled_back() {
     assert!(v.set_blob("new", Some(b"x")).is_err());
     assert_eq!(v.blob("new").unwrap(), None);
 }
+
+/// The documented default (docs/ARCHITECTURE.md, SECURITY.md, BENCHMARKS.md: "256 MiB, t=3, p=4") must be
+/// what the code actually uses. This once drifted (the benchmark script caught 128 MiB in the binary).
+#[test]
+fn the_default_kdf_cost_is_the_documented_one() {
+    assert_eq!(KdfParams::DEFAULT, KdfParams { m_kib: 262_144, t_cost: 3, p_cost: 4 });
+    assert!(KdfParams::DEFAULT.validate_for_new().is_ok());
+    // A vault created with the default records exactly those parameters.
+    let dir = tempfile::tempdir().unwrap();
+    let v = Vault::create(dir.path().join("v.embr"), PW).unwrap();
+    assert_eq!(v.kdf_params().unwrap(), KdfParams::DEFAULT);
+    assert!(!v.kdf_upgrade_recommended());
+}

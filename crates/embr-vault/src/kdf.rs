@@ -33,7 +33,7 @@ impl KdfParams {
     /// `docs/BENCHMARKS.md`). That cost is the main defence against offline guessing of a stolen
     /// vault file; the memory is allocated only transiently, during unlock.
     pub const DEFAULT: KdfParams = KdfParams {
-        m_kib: 131_072,
+        m_kib: 262_144,
         t_cost: 3,
         p_cost: 4,
     };

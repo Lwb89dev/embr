@@ -1,0 +1,58 @@
+# Maintainer: Lwb89dev <84742481+Lwb89dev@users.noreply.github.com>
+#
+# Development package: builds the current `main` of https://github.com/Lwb89dev/embr.
+# (A release PKGBUILD with a pinned tarball and checksum follows the first tagged release.)
+#
+# Local build:   cd packaging/arch && makepkg -si
+# Clean-chroot:  extra-x86_64-build   (devtools)
+
+pkgname=embr-git
+_pkgname=embr
+pkgver=0.0.1.r0.g0000000
+pkgrel=1
+pkgdesc='Native Nostr signer: keys stay in one encrypted local process; apps ask it to sign (daemon and CLI)'
+arch=('x86_64' 'aarch64')
+url='https://github.com/Lwb89dev/embr'
+license=('MIT')
+depends=('glibc' 'gcc-libs')
+makedepends=('cargo' 'git')
+provides=("$_pkgname=${pkgver%%.r*}")
+conflicts=("$_pkgname")
+install=embr-git.install
+source=("$_pkgname::git+$url.git")
+sha256sums=('SKIP')   # a git source cannot be pinned by checksum; pin a commit/tag for releases
+
+pkgver() {
+  cd "$_pkgname"
+  printf '0.0.1.r%s.g%s' "$(git rev-list --count HEAD)" "$(git rev-parse --short HEAD)"
+}
+
+prepare() {
+  cd "$_pkgname"
+  export RUSTUP_TOOLCHAIN=stable
+  cargo fetch --locked --target "$(rustc -vV | sed -n 's/host: //p')"
+}
+
+build() {
+  cd "$_pkgname"
+  export RUSTUP_TOOLCHAIN=stable
+  export CARGO_TARGET_DIR=target
+  cargo build --frozen --release -p embrd -p embrctl
+}
+
+check() {
+  cd "$_pkgname"
+  export RUSTUP_TOOLCHAIN=stable
+  export CARGO_TARGET_DIR=target
+  cargo test --frozen --workspace
+}
+
+package() {
+  cd "$_pkgname"
+  install -Dm755 target/release/embrd   -t "$pkgdir/usr/bin/"
+  install -Dm755 target/release/embrctl -t "$pkgdir/usr/bin/"
+  install -Dm644 packaging/systemd/embrd.service -t "$pkgdir/usr/lib/systemd/user/"
+  install -Dm644 LICENSE -t "$pkgdir/usr/share/licenses/$_pkgname/"
+  install -Dm644 README.md -t "$pkgdir/usr/share/doc/$_pkgname/"
+  install -Dm644 docs/*.md -t "$pkgdir/usr/share/doc/$_pkgname/docs/"
+}
