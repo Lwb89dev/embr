@@ -64,12 +64,16 @@ pub fn poll(
     endpoint: &Option<PathBuf>,
 ) -> Observed {
     if client.is_none()
-        && let Ok(mut c) = embr_client::control::ControlClient::connect(endpoint.clone())
+        && let Ok(c) = embr_client::control::ControlClient::connect(endpoint.clone())
     {
         // A daemon that stops answering must not freeze the tray. (Windows named pipes opened as files have no
         // read timeout; the tray does not run there, so only the portable polling code is compiled.)
         #[cfg(unix)]
-        let _ = c.set_read_timeout(Some(Duration::from_secs(5)));
+        let c = {
+            let mut c = c;
+            let _ = c.set_read_timeout(Some(Duration::from_secs(5)));
+            c
+        };
         *client = Some(c);
     }
     let Some(c) = client.as_mut() else {
