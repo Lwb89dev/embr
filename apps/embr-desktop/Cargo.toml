@@ -1,6 +1,6 @@
 [package]
 name = "embr-desktop"
-description = "Embr desktop app: unlock the vault, manage accounts, approve requests (a thin client of the daemon's control channel)"
+description = "Native Nostr signer: desktop approval app (packaged with the daemon and CLI)"
 version.workspace = true
 edition.workspace = true
 # egui/eframe 0.37 require Rust 1.95; the libraries and the daemon keep the workspace MSRV (1.87).
@@ -34,3 +34,86 @@ tokio = { version = "1", default-features = false, features = ["rt-multi-thread"
 
 [lints]
 workspace = true
+
+# ---- Linux packages -------------------------------------------------------------------------------
+# One package, `embr`, carrying the daemon, the CLI and this app. Build the three binaries first
+# (`cargo build --release -p embrd -p embrctl -p embr-desktop`), then `cargo deb --no-build` or
+# `cargo generate-rpm`. Runtime libraries are listed by hand: the GUI loads Wayland/X11/GL/fontconfig with
+# dlopen (names read from the binary), so tools that follow `ldd` do not see them.
+
+[package.metadata.deb]
+name = "embr"
+maintainer = "Lwb89dev <84742481+Lwb89dev@users.noreply.github.com>"
+copyright = "2026, Lwb89dev"
+license-file = ["../../LICENSE", "0"]
+section = "utils"
+priority = "optional"
+extended-description = """\
+Embr keeps your Nostr private keys in one small, encrypted, local process. Apps on this computer, \
+and remote apps over NIP-46, ask it to sign or decrypt; you decide each request.
+Pre-alpha software, not independently audited."""
+depends = "libc6, libgcc-s1, libfontconfig1, libegl1, libgl1, libwayland-client0, libwayland-egl1, libxkbcommon0, libxkbcommon-x11-0, libx11-6, libx11-xcb1, libxcursor1, libxi6, libxrender1"
+assets = [
+    ["target/release/embr", "usr/bin/", "755"],
+    ["target/release/embrd", "usr/bin/", "755"],
+    ["target/release/embrctl", "usr/bin/", "755"],
+    ["../../packaging/systemd/embrd.service", "usr/lib/systemd/user/", "644"],
+    ["../../packaging/systemd/embrd-remote.conf", "usr/share/doc/embr/examples/", "644"],
+    ["../../packaging/linux/embr.desktop", "usr/share/applications/", "644"],
+    ["../../packaging/linux/embr.metainfo.xml", "usr/share/metainfo/", "644"],
+    ["../../packaging/icons/hicolor/16x16/apps/embr.png", "usr/share/icons/hicolor/16x16/apps/", "644"],
+    ["../../packaging/icons/hicolor/24x24/apps/embr.png", "usr/share/icons/hicolor/24x24/apps/", "644"],
+    ["../../packaging/icons/hicolor/32x32/apps/embr.png", "usr/share/icons/hicolor/32x32/apps/", "644"],
+    ["../../packaging/icons/hicolor/48x48/apps/embr.png", "usr/share/icons/hicolor/48x48/apps/", "644"],
+    ["../../packaging/icons/hicolor/64x64/apps/embr.png", "usr/share/icons/hicolor/64x64/apps/", "644"],
+    ["../../packaging/icons/hicolor/128x128/apps/embr.png", "usr/share/icons/hicolor/128x128/apps/", "644"],
+    ["../../packaging/icons/hicolor/256x256/apps/embr.png", "usr/share/icons/hicolor/256x256/apps/", "644"],
+    ["../../packaging/icons/hicolor/512x512/apps/embr.png", "usr/share/icons/hicolor/512x512/apps/", "644"],
+    ["../../README.md", "usr/share/doc/embr/", "644"],
+    ["../../docs/*.md", "usr/share/doc/embr/docs/", "644"],
+]
+
+[package.metadata.generate-rpm]
+name = "embr"
+summary = "Native Nostr signer: keys stay in one encrypted local process"
+license = "MIT"
+url = "https://github.com/Lwb89dev/embr"
+release = "1"
+assets = [
+    { source = "../../target/release/embr", dest = "/usr/bin/embr", mode = "755" },
+    { source = "../../target/release/embrd", dest = "/usr/bin/embrd", mode = "755" },
+    { source = "../../target/release/embrctl", dest = "/usr/bin/embrctl", mode = "755" },
+    { source = "../../packaging/systemd/embrd.service", dest = "/usr/lib/systemd/user/embrd.service", mode = "644" },
+    { source = "../../packaging/systemd/embrd-remote.conf", dest = "/usr/share/doc/embr/examples/embrd-remote.conf", mode = "644", doc = true },
+    { source = "../../packaging/linux/embr.desktop", dest = "/usr/share/applications/embr.desktop", mode = "644" },
+    { source = "../../packaging/linux/embr.metainfo.xml", dest = "/usr/share/metainfo/embr.metainfo.xml", mode = "644" },
+    { source = "../../packaging/icons/hicolor/16x16/apps/embr.png", dest = "/usr/share/icons/hicolor/16x16/apps/embr.png", mode = "644" },
+    { source = "../../packaging/icons/hicolor/24x24/apps/embr.png", dest = "/usr/share/icons/hicolor/24x24/apps/embr.png", mode = "644" },
+    { source = "../../packaging/icons/hicolor/32x32/apps/embr.png", dest = "/usr/share/icons/hicolor/32x32/apps/embr.png", mode = "644" },
+    { source = "../../packaging/icons/hicolor/48x48/apps/embr.png", dest = "/usr/share/icons/hicolor/48x48/apps/embr.png", mode = "644" },
+    { source = "../../packaging/icons/hicolor/64x64/apps/embr.png", dest = "/usr/share/icons/hicolor/64x64/apps/embr.png", mode = "644" },
+    { source = "../../packaging/icons/hicolor/128x128/apps/embr.png", dest = "/usr/share/icons/hicolor/128x128/apps/embr.png", mode = "644" },
+    { source = "../../packaging/icons/hicolor/256x256/apps/embr.png", dest = "/usr/share/icons/hicolor/256x256/apps/embr.png", mode = "644" },
+    { source = "../../packaging/icons/hicolor/512x512/apps/embr.png", dest = "/usr/share/icons/hicolor/512x512/apps/embr.png", mode = "644" },
+    { source = "../../LICENSE", dest = "/usr/share/licenses/embr/LICENSE", mode = "644", doc = true },
+    { source = "../../README.md", dest = "/usr/share/doc/embr/README.md", mode = "644", doc = true },
+    { source = "../../docs/*.md", dest = "/usr/share/doc/embr/docs/", mode = "644", doc = true },
+]
+
+# Fedora package names. openSUSE names the same libraries differently (e.g. libwayland-client0) and is
+# not covered: this file has not been used there.
+[package.metadata.generate-rpm.requires]
+glibc = "*"
+libgcc = "*"
+fontconfig = "*"
+libglvnd-egl = "*"
+libglvnd-glx = "*"
+libwayland-client = "*"
+libwayland-egl = "*"
+libxkbcommon = "*"
+libxkbcommon-x11 = "*"
+libX11 = "*"
+libX11-xcb = "*"
+libXcursor = "*"
+libXi = "*"
+libXrender = "*"

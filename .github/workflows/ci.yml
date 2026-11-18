@@ -31,10 +31,19 @@ jobs:
       matrix:
         os: [ubuntu-latest, macos-latest, windows-latest]
     runs-on: ${{ matrix.os }}
+    # A hung test must fail the job with a readable log, not sit for the 6 h default (a macOS job did).
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
       - run: rustup show
-      - run: cargo test --workspace --locked --no-fail-fast
+      - name: Run tests
+        if: runner.os != 'macOS'
+        timeout-minutes: 20
+        run: cargo test --workspace --locked --no-fail-fast
+      - name: Run tests (macOS - sequential and unbuffered so that a hang names its test)
+        if: runner.os == 'macOS'
+        timeout-minutes: 15
+        run: cargo test --workspace --locked --no-fail-fast -- --test-threads=1 --nocapture
 
   arch-package:
     # Builds the Arch package exactly as `makepkg` would for a user (clean container, no network
@@ -44,15 +53,18 @@ jobs:
     steps:
       - name: Install build tools
         run: pacman -Syu --noconfirm --needed base-devel git rust sudo
+      - name: Let the build user install the package's dependencies (makepkg -s)
+        run: |
+          useradd -m builder
+          echo 'builder ALL=(ALL) NOPASSWD: ALL' > /etc/sudoers.d/builder
       - uses: actions/checkout@v4
       - name: Build the package as an unprivileged user
         run: |
-          useradd -m builder
           cp -r "$GITHUB_WORKSPACE" /home/builder/src && chown -R builder /home/builder/src
           cd /home/builder/src/packaging/arch
           sed -i "s|source=(.*|source=(\"\$_pkgname::git+file:///home/builder/src\")|" PKGBUILD
           sudo -u builder git config --global --add safe.directory '*'
-          sudo -u builder makepkg -f --noconfirm
+          sudo -u builder makepkg -sf --noconfirm
           pacman -Qlp *.pkg.tar.zst
 
   interop:

@@ -13,3 +13,7 @@ paths = [
   '''crates/[^/]+/tests/.*''',
   '''docs/.*''',
 ]
+
+[[allowlists]]
+description = "The made-up single-use secret in the GUI's --demo bunker:// link (canned data, never a real secret)"
+regexes = ['''^0123456789abcdef0123456789abcdef$''']
