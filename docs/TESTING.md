@@ -50,8 +50,13 @@ caught by tests, one (AAD over KDF fields) is redundant by design and was docume
   serialization rules and against `nostr-tools` (which found finding F1 in `RESEARCH.md`).
 
 ## Not yet covered (honest list)
-* macOS and Windows have **never been run** — the CI matrix exists but has not executed. Unix-only
-  tests (`0600`/`0700`) are `cfg(unix)`; the atomic-create race test is unverified on Windows.
+* **Per platform, on GitHub's runners (not on machines I own):** Linux runs everything; **macOS** (Apple
+  Silicon runner) ran the whole workspace on commit `ffc61d9`: **204 tests, 0 failed**, including the daemon
+  e2e, NIP-46 and CLI suites; **Windows** ran **163 tests, 0 failed** on `e452dfc`. On Windows the daemon e2e,
+  NIP-46 daemon and CLI suites are Unix-only (they use Unix sockets), so the Windows daemon is covered by
+  `windows_smoke.rs` only: two tests over real named pipes (pairing, signing and locking; a squatted pipe name
+  stops the daemon). Unix permission tests (`0600`/`0700`) are `cfg(unix)`. The NIP-46 interop test against
+  nostr-tools runs on Linux only (Node is installed there). Intel macOS, older macOS and Windows 10 were not run.
 * **GUI coverage is partial.** `embr-desktop` has 25 tests: 13 render each screen headless through egui
   (nothing is drawn to a display) and check what is on screen and which commands come out, and 4 run the GUI's
   backend against a **real `embrd`** on real sockets (create vault, lock/unlock, wrong password, pair an SDK
@@ -77,11 +82,11 @@ caught by tests, one (AAD over KDF fields) is redundant by design and was docume
   buffers absorbed the 1.1 MB write that macOS's small ones turned into an endless block. Fixed, with two
   regression tests that fail on the old code (`finished_connections_release_their_slot`, and the hostile-IPC
   test now requires a real close within 3 s); the e2e suite now takes 2.6 s. Raw test sockets also got a write
-  timeout, the control client a read timeout, and CI bounds every test job. **Not yet confirmed on macOS**: the
-  macOS jobs were still queued when this was written.
-* Windows named pipes are implemented with a user-only DACL; the `windows-latest` CI job passed on commit
-  `a6d9421`, but I have not looked at the per-test output and nobody has run it on a real Windows machine.
-  macOS CI had not finished when this was written.
+  timeout, the control client a read timeout, and CI bounds every test job. **Confirmed on macOS** (job on
+  `ffc61d9`, 8 minutes): all 204 tests pass and the hostile-IPC test, which hung for six hours before, takes
+  148 ms.
+* Nobody has run the Windows daemon on a real Windows machine, and the user-only DACL on the pipes is checked
+  by the two smoke tests above only (not by an attempt to connect as another user).
 * **Fuzzing is modest.** `fuzz/` holds eight libFuzzer targets (IPC framing + every strict wire type,
   event templates incl. sign-and-verify, vault file parsing, stored policy JSON with a default-deny/DM-kind
   invariant, key/ciphertext parsing, handshake proofs, NIP-46 URIs/relay URLs, NIP-46 events). The first six ran

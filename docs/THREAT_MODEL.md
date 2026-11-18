@@ -165,11 +165,13 @@ on the real platform in M3 and recorded in `TESTING.md`.)
   zeroising containers and wiped on drop/lock. Rust gives **no** guarantee that *no other copy*
   exists: moves, reallocation inside third-party code, the Argon2 memory matrix (the crate's `zeroize` feature is enabled but not verified to wipe it all), `serde_json`
   internal buffers for non-secret metadata, and CPU registers/caches may leave residues.
-* **Swap/hibernation:** not prevented. `mlock` of key pages (requires `unsafe`, confined to the
-  future `embr-platform` crate) and encrypted swap are recommended; neither is implemented yet.
-* **Core dumps:** the daemon will set `RLIMIT_CORE=0` and be non-dumpable; the systemd unit sets
-  `LimitCORE=0` (M3/M6). Until then, a crash while unlocked on a system with `systemd-coredump`
-  can write key material to disk — a finding Omostrich's author hit.
+* **Swap/hibernation:** not prevented. `mlock` of key pages (it would need `unsafe`, which is confined to
+  `embr-platform`) and encrypted swap are recommended; `mlock` is not implemented.
+* **Core dumps:** the daemon and the GUI set `RLIMIT_CORE=0` on every Unix; on Linux they also become
+  non-dumpable (`PR_SET_DUMPABLE=0`) and set `NO_NEW_PRIVS` before any thread exists (tested in
+  `embr-platform`, and `LimitCORE=0` is in the systemd unit). On **macOS only the core limit is applied** (no
+  `PT_DENY_ATTACH`); on **Windows nothing equivalent is done** (no WER dump exclusion). Without these a crash while unlocked
+  on a system with `systemd-coredump` could write key material to disk — a finding Omostrich's author hit.
 * **Screen capture / clipboard:** displayed plaintext and any copied `nsec` are exposed to anything
   that can capture them. Embr never puts a secret on the clipboard unprompted; reveal-nsec
   needs the vault password again (control API only; the GUI does not offer it).

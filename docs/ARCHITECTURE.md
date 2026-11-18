@@ -1,7 +1,7 @@
 # Architecture
 
-*Status legend: **[built]** exists and is tested in this repository; **[next]** is the very next
-milestone; **[planned]** is designed but not started.*
+*Status legend: **[built]** exists and is tested in this repository (tested on Linux unless a row says
+otherwise; see `TESTING.md` for macOS and Windows); **[planned]** is designed but not started.*
 
 ## 1. Product shape
 
