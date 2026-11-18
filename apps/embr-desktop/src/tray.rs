@@ -10,6 +10,7 @@
 #![cfg_attr(not(target_os = "linux"), allow(dead_code))]
 
 use std::path::PathBuf;
+#[cfg(unix)]
 use std::time::Duration;
 
 use embr_ipc::control::VaultState;
@@ -65,7 +66,9 @@ pub fn poll(
     if client.is_none()
         && let Ok(mut c) = embr_client::control::ControlClient::connect(endpoint.clone())
     {
-        // A daemon that stops answering must not freeze the tray.
+        // A daemon that stops answering must not freeze the tray. (Windows named pipes opened as files have no
+        // read timeout; the tray does not run there, so only the portable polling code is compiled.)
+        #[cfg(unix)]
         let _ = c.set_read_timeout(Some(Duration::from_secs(5)));
         *client = Some(c);
     }

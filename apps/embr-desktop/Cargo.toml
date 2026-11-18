@@ -31,7 +31,8 @@ serde_json.workspace = true
 [target.'cfg(target_os = "linux")'.dependencies]
 ksni = { version = "0.3", default-features = false, features = ["async-io", "blocking"] }
 
-[dev-dependencies]
+# Only Unix tests use these (the integration tests start a real daemon over Unix sockets).
+[target.'cfg(unix)'.dev-dependencies]
 embrd = { path = "../embrd", version = "0.0.1" }
 embr-crypto.workspace = true
 embr-vault.workspace = true
