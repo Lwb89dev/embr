@@ -1,0 +1,291 @@
+# Builds every installable artefact and proves that each one installs:
+#   * .deb is installed on Ubuntu, .rpm on Fedora (package dependencies resolved by the real package managers);
+#   * the Windows installer is installed and uninstalled silently on a Windows runner;
+#   * the .dmg is mounted on macOS and its binaries are run.
+# Triggers: a version tag (v*) or a manual run. A tag run also creates a DRAFT GitHub release; nothing is ever
+# published automatically. The signing steps run only when credentials are configured as repository secrets
+# and have NOT been exercised yet (no credentials exist); see docs/RELEASE.md.
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  version:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.v.outputs.version }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - id: v
+        run: |
+          v=$(grep -m1 '^version' Cargo.toml | sed 's/.*"\(.*\)".*/\1/')
+          echo "workspace version: $v"
+          if [[ "$GITHUB_REF" == refs/tags/v* && "$GITHUB_REF_NAME" != "v$v" ]]; then
+            echo "::error::tag $GITHUB_REF_NAME does not match the workspace version $v"; exit 1
+          fi
+          echo "version=$v" >> "$GITHUB_OUTPUT"
+
+  linux-packages:
+    needs: version
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - run: rustup show
+      - run: cargo build --release --locked -p embrd -p embrctl -p embr-desktop
+      - name: Packaging tools (pinned)
+        run: cargo install --locked cargo-deb@3.8.0 cargo-generate-rpm@0.21.1
+      - run: |
+          mkdir dist
+          cargo deb -p embr-desktop --no-build --output dist/
+          cargo generate-rpm -p apps/embr-desktop -o dist/
+          ls -l dist
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with: { name: linux-packages, path: dist/*, if-no-files-found: error }
+
+  verify-deb:
+    needs: linux-packages
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with: { name: linux-packages, path: dist }
+      - name: Install with apt (resolves the package's own dependencies) and look at the result
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ./dist/embr_*.deb desktop-file-utils
+          embrd --version && embrctl --version && embr --version
+          desktop-file-validate /usr/share/applications/embr.desktop
+          test -f /usr/lib/systemd/user/embrd.service
+          test -f /usr/share/icons/hicolor/256x256/apps/embr.png
+          # every library the GUI dlopens must exist after installing only what the package depends on
+          for lib in libEGL.so.1 libGL.so.1 libwayland-client.so.0 libwayland-egl.so.1 libxkbcommon.so.0 \
+                     libxkbcommon-x11.so.0 libX11.so.6 libX11-xcb.so.1 libXcursor.so.1 libXi.so.6 \
+                     libXrender.so.1 libfontconfig.so.1; do
+            ldconfig -p | grep -q "$lib" || { echo "::error::$lib is not provided by the package's dependencies"; exit 1; }
+          done
+      - name: The daemon runs and answers (no vault yet)
+        run: |
+          d=$(mktemp -d); embrd --data-dir "$d/d" --runtime-dir "$d/r" & pid=$!
+          sleep 2
+          EMBR_CONTROL_SOCKET="$d/r/control.sock" embrctl status | tee /dev/stderr | grep -q "vault:.*Missing"
+          kill $pid
+      - name: Removal
+        run: |
+          sudo apt-get remove -y embr
+          ! command -v embrd
+
+  verify-rpm:
+    needs: linux-packages
+    runs-on: ubuntu-latest
+    container: fedora:latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with: { name: linux-packages, path: dist }
+      - name: Install with dnf (resolves the package's own dependencies) and look at the result
+        run: |
+          dnf install -y ./dist/embr-*.rpm desktop-file-utils
+          embrd --version && embrctl --version && embr --version
+          desktop-file-validate /usr/share/applications/embr.desktop
+          test -f /usr/lib/systemd/user/embrd.service
+          rpm -q --requires embr | sort -u
+      - name: The daemon runs and answers (no vault yet)
+        run: |
+          d=$(mktemp -d); embrd --data-dir "$d/d" --runtime-dir "$d/r" & pid=$!
+          sleep 2
+          EMBR_CONTROL_SOCKET="$d/r/control.sock" embrctl status | tee /dev/stderr | grep -q "vault:.*Missing"
+          kill $pid
+      - run: |
+          dnf remove -y embr
+          ! command -v embrd
+
+  windows-installer:
+    needs: version
+    runs-on: windows-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - run: rustup show
+      - run: cargo build --release --locked -p embrd -p embrctl -p embr-desktop
+      - name: Install NSIS
+        run: choco install nsis --no-progress -y
+      - name: Build the installer
+        shell: pwsh
+        run: |
+          & "${env:ProgramFiles(x86)}\NSIS\makensis.exe" /V2 "/DVERSION=${{ needs.version.outputs.version }}" packaging\windows\embr.nsi
+          if ($LASTEXITCODE -ne 0) { throw "makensis failed ($LASTEXITCODE)" }
+          New-Item -ItemType Directory dist | Out-Null
+          Move-Item embr-*-setup.exe dist\
+          Get-ChildItem dist
+      - name: Sign the installer (only if a certificate is configured; UNTESTED)
+        shell: pwsh
+        env:
+          WINDOWS_CERT_PFX_BASE64: ${{ secrets.WINDOWS_CERT_PFX_BASE64 }}
+          WINDOWS_CERT_PASSWORD: ${{ secrets.WINDOWS_CERT_PASSWORD }}
+        run: |
+          if (-not $env:WINDOWS_CERT_PFX_BASE64) {
+            Write-Host "::notice::No code-signing certificate configured: the installer is UNSIGNED and SmartScreen will warn."
+            exit 0
+          }
+          $pfx = Join-Path $env:RUNNER_TEMP "cert.pfx"
+          [IO.File]::WriteAllBytes($pfx, [Convert]::FromBase64String($env:WINDOWS_CERT_PFX_BASE64))
+          $signtool = (Get-ChildItem "${env:ProgramFiles(x86)}\Windows Kits\10\bin\*\x64\signtool.exe" | Sort-Object FullName | Select-Object -Last 1).FullName
+          & $signtool sign /f $pfx /p $env:WINDOWS_CERT_PASSWORD /fd SHA256 /tr http://timestamp.digicert.com /td SHA256 (Get-ChildItem dist\*.exe).FullName
+          Remove-Item $pfx
+      - name: Install silently, run the installed programs, uninstall silently
+        shell: pwsh
+        run: |
+          $dir = Join-Path $env:RUNNER_TEMP "embr-install"
+          $setup = (Get-ChildItem dist\embr-*-setup.exe).FullName
+          $p = Start-Process -FilePath $setup -ArgumentList '/S', "/D=$dir" -Wait -PassThru
+          if ($p.ExitCode -ne 0) { throw "installer exited with $($p.ExitCode)" }
+          foreach ($f in 'embr.exe','embrd.exe','embrctl.exe','LICENSE','README.md','embr.ico','uninstall.exe') {
+            if (-not (Test-Path "$dir\$f")) { throw "missing after install: $f" }
+          }
+          & "$dir\embrd.exe" --version;   if ($LASTEXITCODE -ne 0) { throw "embrd --version failed" }
+          & "$dir\embrctl.exe" --version; if ($LASTEXITCODE -ne 0) { throw "embrctl --version failed" }
+          if (-not (Test-Path "$env:APPDATA\Microsoft\Windows\Start Menu\Programs\Embr\Embr.lnk")) { throw "no Start menu shortcut" }
+          if (-not (Test-Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\Embr")) { throw "no uninstall entry" }
+          # the installed daemon starts and answers over its named pipe
+          $d = Start-Process -FilePath "$dir\embrd.exe" -PassThru -WindowStyle Hidden
+          Start-Sleep -Seconds 3
+          $status = & "$dir\embrctl.exe" status | Out-String
+          Write-Host $status
+          Stop-Process -Id $d.Id -Force
+          if ($status -notmatch 'vault:\s+Missing') { throw "the installed daemon did not answer as expected" }
+          $u = Start-Process -FilePath "$dir\uninstall.exe" -ArgumentList '/S', "_?=$dir" -Wait -PassThru
+          if ($u.ExitCode -ne 0) { throw "uninstaller exited with $($u.ExitCode)" }
+          foreach ($f in 'embr.exe','embrd.exe','embrctl.exe') {
+            if (Test-Path "$dir\$f") { throw "still present after uninstall: $f" }
+          }
+          if (Test-Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\Embr") { throw "uninstall entry left behind" }
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with: { name: windows-installer, path: dist/*, if-no-files-found: error }
+
+  macos-dmg:
+    needs: version
+    runs-on: macos-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - run: |
+          rustup show
+          rustup target add aarch64-apple-darwin x86_64-apple-darwin
+      - name: Build both architectures
+        run: |
+          for t in aarch64-apple-darwin x86_64-apple-darwin; do
+            cargo build --release --locked --target "$t" -p embrd -p embrctl -p embr-desktop
+          done
+      - name: Universal binaries
+        run: |
+          mkdir universal
+          for b in embr embrd embrctl; do
+            lipo -create -output "universal/$b" "target/aarch64-apple-darwin/release/$b" "target/x86_64-apple-darwin/release/$b"
+          done
+          lipo -info universal/*
+      - name: Import the Developer ID certificate (only if configured; UNTESTED)
+        env:
+          APPLE_CERT_P12_BASE64: ${{ secrets.APPLE_CERT_P12_BASE64 }}
+          APPLE_CERT_PASSWORD: ${{ secrets.APPLE_CERT_PASSWORD }}
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+        run: |
+          if [ -z "$APPLE_CERT_P12_BASE64" ]; then
+            echo "::notice::No Apple credentials configured: the app is ad-hoc signed and NOT notarised (Gatekeeper will warn)."
+            exit 0
+          fi
+          kc="$RUNNER_TEMP/embr.keychain-db"; pw=$(uuidgen)
+          echo "$APPLE_CERT_P12_BASE64" | base64 --decode > "$RUNNER_TEMP/cert.p12"
+          security create-keychain -p "$pw" "$kc"
+          security set-keychain-settings -lut 3600 "$kc"
+          security unlock-keychain -p "$pw" "$kc"
+          security import "$RUNNER_TEMP/cert.p12" -P "$APPLE_CERT_PASSWORD" -A -t cert -f pkcs12 -k "$kc"
+          security set-key-partition-list -S apple-tool:,apple: -s -k "$pw" "$kc"
+          security list-keychains -d user -s "$kc" login.keychain
+          rm "$RUNNER_TEMP/cert.p12"
+          echo "CODESIGN_IDENTITY=$APPLE_SIGNING_IDENTITY" >> "$GITHUB_ENV"
+      - name: Build Embr.app and the .dmg
+        run: packaging/macos/build_app.sh "${{ needs.version.outputs.version }}" universal dist
+      - name: Notarise (only if configured; UNTESTED)
+        env:
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          APPLE_APP_PASSWORD: ${{ secrets.APPLE_APP_PASSWORD }}
+        run: |
+          if [ -z "$APPLE_ID" ] || [ -z "${CODESIGN_IDENTITY:-}" ]; then
+            echo "::notice::Not notarised (no credentials)."; exit 0
+          fi
+          dmg=$(ls dist/*.dmg)
+          xcrun notarytool submit "$dmg" --apple-id "$APPLE_ID" --team-id "$APPLE_TEAM_ID" --password "$APPLE_APP_PASSWORD" --wait
+          xcrun stapler staple "$dmg"
+      - name: Mount the .dmg and run what is inside
+        run: |
+          hdiutil attach dist/*.dmg -mountpoint /Volumes/EmbrCheck -nobrowse -readonly
+          app=/Volumes/EmbrCheck/Embr.app/Contents/MacOS
+          "$app/embrd" --version && "$app/embrctl" --version && "$app/embr" --version
+          lipo -archs "$app/embrd"
+          codesign --verify --deep --strict /Volumes/EmbrCheck/Embr.app
+          d=$(mktemp -d)
+          "$app/embrd" --data-dir "$d/d" --runtime-dir "$d/r" & pid=$!
+          sleep 2
+          EMBR_CONTROL_SOCKET="$d/r/control.sock" "$app/embrctl" status | tee /dev/stderr | grep -q "vault:.*Missing"
+          kill $pid
+          hdiutil detach /Volumes/EmbrCheck
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with: { name: macos-dmg, path: dist/*.dmg, if-no-files-found: error }
+
+  sbom:
+    needs: version
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - run: rustup show
+      - run: cargo install --locked cargo-cyclonedx@0.5.10
+      - run: |
+          cargo cyclonedx --format json --spec-version 1.5
+          mkdir dist
+          for c in embrd embrctl embr-desktop; do cp apps/$c/$c.cdx.json "dist/$c-${{ needs.version.outputs.version }}.cdx.json"; done
+          ls -l dist
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with: { name: sbom, path: dist/*, if-no-files-found: error }
+
+  checksums:
+    needs: [version, linux-packages, verify-deb, verify-rpm, windows-installer, macos-dmg, sbom]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with: { path: dist, merge-multiple: true }
+      - run: |
+          cd dist
+          sha256sum * > SHA256SUMS
+          cat SHA256SUMS
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with: { name: release-files, path: dist/*, if-no-files-found: error }
+
+  draft-release:
+    # Tag runs only. Creates a DRAFT release with provenance attestations; a human publishes it.
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: checksums
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      id-token: write
+      attestations: write
+    steps:
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with: { name: release-files, path: dist }
+      - uses: actions/attest-build-provenance@e8998f949152b193b063cb0ec769d69d929409be # v2
+        with: { subject-path: "dist/*" }
+      - env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "$GITHUB_REF_NAME" dist/* --repo "$GITHUB_REPOSITORY" --draft --prerelease --title "$GITHUB_REF_NAME" --notes "Pre-alpha, not audited. See docs/SECURITY.md and docs/RELEASE.md."

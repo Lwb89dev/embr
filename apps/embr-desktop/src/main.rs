@@ -3,6 +3,9 @@
 //! A thin client of the daemon's control channel: it shows state, collects decisions and sends them
 //! back. It holds **no key material** and keeps nothing between runs except what the daemon stores.
 //! If this window is closed the daemon (and every previously authorised request) keeps working.
+// On Windows this is a GUI-subsystem program: no console window behind it. (As a consequence `embr --version`
+// prints nothing there; use `embrctl --version` / `embrd --version`, which are console programs.)
+#![cfg_attr(windows, windows_subsystem = "windows")]
 #![allow(clippy::print_stderr, unreachable_pub)]
 
 mod backend;

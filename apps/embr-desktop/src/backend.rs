@@ -286,12 +286,17 @@ fn start_daemon(state: &Mutex<Snapshot>) {
         })
         .filter(|p| p.exists())
         .unwrap_or_else(|| "embrd".into());
-    match std::process::Command::new(exe)
-        .stdin(std::process::Stdio::null())
+    let mut cmd = std::process::Command::new(exe);
+    cmd.stdin(std::process::Stdio::null())
         .stdout(std::process::Stdio::null())
-        .stderr(std::process::Stdio::null())
-        .spawn()
+        .stderr(std::process::Stdio::null());
+    #[cfg(windows)]
     {
+        // `embrd` is a console program: do not flash a console window for a background daemon.
+        use std::os::windows::process::CommandExt;
+        cmd.creation_flags(0x0800_0000); // CREATE_NO_WINDOW
+    }
+    match cmd.spawn() {
         Ok(_) => notice(state, "Starting the signer daemon…", false),
         Err(e) => notice(state, format!("Cannot start `embrd`: {e}"), true),
     }

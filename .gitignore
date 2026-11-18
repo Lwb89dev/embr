@@ -6,3 +6,6 @@
 *.embr
 *.embr.tmp
 .env
+
+# Generated SBOMs (cargo cyclonedx); produced by the release workflow, not committed
+*.cdx.json

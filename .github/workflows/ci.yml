@@ -1,6 +1,5 @@
-# NOTE: first executed on GitHub on 2026-11-17 (see docs/TESTING.md for what each job proved). The Windows
-# job runs the named-pipe smoke test (apps/embrd/tests/windows_smoke.rs); the full e2e suites are Unix-only. Before the first
-# release: pin every `uses:` to a full commit SHA (see docs/RELEASE.md).
+# Every `uses:` is pinned to a full commit SHA (the comment names the tag it was resolved from); bump them
+# deliberately, never by moving a tag. Verified by CI runs on GitHub: see docs/TESTING.md for what each job proves.
 name: CI
 
 on:
@@ -19,7 +18,7 @@ jobs:
   lint:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
       - name: Install pinned toolchain (rust-toolchain.toml)
         run: rustup show
       - run: cargo fmt --all -- --check
@@ -34,7 +33,7 @@ jobs:
     # A hung test must fail the job with a readable log, not sit for the 6 h default (a macOS job did).
     timeout-minutes: 30
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
       - run: rustup show
       - name: Run tests
         if: runner.os != 'macOS'
@@ -57,7 +56,7 @@ jobs:
         run: |
           useradd -m builder
           echo 'builder ALL=(ALL) NOPASSWD: ALL' > /etc/sudoers.d/builder
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
       - name: Build the package as an unprivileged user
         run: |
           cp -r "$GITHUB_WORKSPACE" /home/builder/src && chown -R builder /home/builder/src
@@ -71,9 +70,9 @@ jobs:
     # Two-way interoperability with an independent implementation (nostr-tools, pinned).
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
       - run: rustup show
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: "22"
       - run: tests/interop/run.sh
@@ -81,8 +80,8 @@ jobs:
   supply-chain:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: EmbarkStudios/cargo-deny-action@v2
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: EmbarkStudios/cargo-deny-action@70f81531115945ba6eb6b941ec9d39d063438eb9 # v2
         with:
           command: check
           arguments: --locked
@@ -90,9 +89,9 @@ jobs:
   secrets:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           fetch-depth: 0
-      - uses: gitleaks/gitleaks-action@v2
+      - uses: gitleaks/gitleaks-action@ff98106e4c7b2bc287b24eaf42907196329070c7 # v2
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
