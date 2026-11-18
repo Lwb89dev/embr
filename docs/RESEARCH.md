@@ -269,7 +269,8 @@ discovery, and `nostrconnect://` with a mandatory `secret`. Amber also implement
   verified/decrypted/imported by Embr. Direction 2: artefacts produced by Embr (18 of them, incl. a
   65 535-byte NIP-44 message and an `ncryptsec` with a non-ASCII password) are accepted by
   `nostr-tools`. Reproduce with `tests/interop/run.sh`.
-* **Not yet done:** interop with `nak`, Amber, or other signers over NIP-46 (milestone 5).
+* **Not yet done:** interop with a second independent NIP-46 *client* such as `nak` (Amber is another signer,
+  not a client, so it is not a counterpart for Embr as a signer).
 
 ## 4. Reusable libraries
 

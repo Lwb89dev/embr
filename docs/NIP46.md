@@ -1,9 +1,10 @@
 # NIP-46 remote signing
 
 > **Status: implemented (Milestone 5), Linux/macOS, tested end to end** against an in-process relay and
-> against an independent client (nostr-tools' `BunkerSigner`, JavaScript). Not yet tested against Amber,
-> `nak`, or real public relays over TLS (the TLS path is implemented but only exercised by compilation and
-> by `ws://` loopback tests — see "Not verified"). **Off by default.**
+> against an independent client (nostr-tools' `BunkerSigner`, JavaScript). `wss://` is tested over real TLS against
+> an in-process relay with a throw-away certificate (including refusal of unknown-authority, wrong-name and
+> expired certificates). Not yet tested against a second independent client (`nak`) or real public relays — see
+> "Not verified". **Off by default.**
 
 ## What it is
 Remote signing lets a NIP-46 client — a web app, a phone app, another machine — ask Embr to sign and
@@ -84,9 +85,11 @@ Run with `tests/interop/run.sh`.
 ## Not implemented / not verified
 * `auth_url` challenges (we never need the user to visit a URL), NIP-89 discovery, `get_relays`, `logout`.
 * A **loopback-only relay inside the daemon** (Amber Desktop has one) — an idea for later.
-* TLS (`wss://`) is rustls + ring + bundled Mozilla roots (ADR-9); verified to compile and link, **not** yet
-  exercised against a real public relay. Certificate pinning is not implemented.
-* Interop with Amber, `nak`, other clients; behaviour on flaky mobile networks; many relays.
+* TLS (`wss://`) is rustls + ring + bundled Mozilla roots (ADR-9). Exercised against an in-process TLS relay
+  (`crates/embr-nip46/tests/tls.rs`), **not** yet against a real public relay with a CA-signed certificate.
+  Certificate pinning is not implemented.
+* Interop with other NIP-46 *clients* besides nostr-tools (e.g. `nak`); behaviour on flaky mobile networks; many
+  relays. (Amber is not a counterpart for this test: it is another *signer*, so Embr cannot be exercised through it.)
 * Tor/onion relays; per-relay settings; relay metadata leaks (a relay learns *that* a signer and client
   talk, not what).
 * Windows (no daemon transport yet).

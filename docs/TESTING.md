@@ -109,5 +109,6 @@ caught by tests, one (AAD over KDF fields) is redundant by design and was docume
   not reach: no persisted seed corpus, no structure-aware mutators, no sanitizers beyond libFuzzer's defaults.
   The weekly schedule (Sundays 03:17 UTC) has not fired yet.
 * No test of OS suspend/resume, SIGKILL/crash recovery beyond stale-socket cleanup, package upgrade/uninstall.
-* Interop with `nak`, Amber, or any NIP-46 implementation: not yet.
+* Interop with NIP-46 clients other than nostr-tools (for example `nak`): not yet. Amber is not a test
+  counterpart: it is another *signer*, and Embr's NIP-46 side is a signer too.
 * No timing/side-channel testing of our own code (we rely on libsecp256k1/RustCrypto).

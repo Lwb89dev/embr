@@ -60,7 +60,9 @@ Without a Mac: fork the repository, add the secrets listed in `docs/RELEASE.md` 
 **Release** workflow there; its `macos-dmg` job calls this same script on a GitHub macOS runner.
 
 What is and is not verified: the **ad-hoc path** runs on a GitHub macOS runner every time the release workflow
-runs (build both architectures, `lipo`, bundle, `.dmg`, mount it, run what is inside). The **Developer-ID signing
+runs (build both architectures, `lipo`, bundle, `.dmg`, mount it, run what is inside). It last did so on commit
+`e97fa78` (the first run that used this script): `lipo` reported `x86_64 arm64`, the `.dmg` mounted, and the daemon
+inside it answered `vault: Missing`. The **Developer-ID signing
 and the notarisation** are untested — the maintainers cannot run them. If they fail for you, that is a bug worth
 reporting. Whatever you build, the bundle is only as trustworthy as the source you built it from: check the
 commit you are on, and see `docs/RELEASE.md` for the checksums of official artefacts.
