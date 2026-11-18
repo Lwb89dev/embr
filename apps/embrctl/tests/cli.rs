@@ -59,6 +59,15 @@ fn ctl(env: &Env, args: &[&str], stdin: &str) -> Output {
         .unwrap()
         .write_all(stdin.as_bytes())
         .unwrap();
+    // Never wait forever for the CLI: a hang must fail this test, by name, instead of stalling CI.
+    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(60);
+    while child.try_wait().unwrap().is_none() {
+        if std::time::Instant::now() > deadline {
+            let _ = child.kill();
+            panic!("`embrctl {}` did not finish within 60 s", args.join(" "));
+        }
+        std::thread::sleep(std::time::Duration::from_millis(20));
+    }
     child.wait_with_output().unwrap()
 }
 
@@ -110,6 +119,7 @@ async fn cli_manages_the_vault_and_answers_approvals() {
     let mut sc = SignerClient::connect(&id, {
         let mut o = ConnectOptions::new("Terminal Test App");
         o.endpoint = Some(env.signer.clone());
+        o.read_timeout = Some(std::time::Duration::from_secs(60));
         o
     })
     .unwrap();

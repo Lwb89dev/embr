@@ -67,7 +67,11 @@ pub async fn boot_with(env: &Env, f: impl FnOnce(&mut DaemonConfig)) -> DaemonHa
 }
 
 pub fn ctl(env: &Env) -> ControlClient {
-    ControlClient::connect(Some(env.control())).unwrap()
+    let mut c = ControlClient::connect(Some(env.control())).unwrap();
+    // No default timeout exists; without one a daemon that never answers hangs the whole test run
+    // (a macOS CI job sat in `cargo test` for hours). A timeout turns that into a named failure.
+    c.set_read_timeout(Some(Duration::from_secs(30))).unwrap();
+    c
 }
 
 /// A control client with a freshly created vault and `n` accounts.

@@ -37,7 +37,21 @@ Runs on `v*` tags or by hand. It builds each artefact on a clean GitHub runner *
 run the installed programs → silent uninstall of the NSIS installer on a Windows runner, `hdiutil attach` →
 run the binaries inside the `.dmg` on macOS. Each of those jobs also starts the installed daemon and asks it for
 its status. It then writes CycloneDX SBOMs and `SHA256SUMS`; a tag run creates a **draft** pre-release with
-provenance attestations (never published automatically). RESULTS_PLACEHOLDER
+provenance attestations (never published automatically). 
+
+**Results of the run on commit `b6f3bfe` (2026-11-18, GitHub-hosted runners):**
+| Job | Result | What it proves — and what it does not |
+|---|---|---|
+| `.deb` on Ubuntu 22.04, 24.04, latest, and Debian 12 | passed | `apt install ./embr_*.deb` resolved the declared dependencies, `embrd`/`embrctl`/`embr --version` ran, the `.desktop` file validated, every library the GUI `dlopen`s exists, the daemon started and `embrctl status` answered, removal worked. Does **not** prove the GUI window opens (no display on the runner). |
+| `.rpm` on Fedora (container) | passed | same checks with `dnf`; openSUSE is **not** covered |
+| Windows installer (`embr-0.0.1-setup.exe`, 5.1 MB) | passed | silent install, installed `embrd`/`embrctl` run, the installed daemon answers over its named pipe, shortcut and uninstall entry exist, silent uninstall removes files and registry key. Unsigned. Does **not** prove the GUI window opens, nor behaviour on Windows 10. |
+| CycloneDX SBOMs, version check | passed | one SBOM per binary (`embrd`, `embrctl`, `embr-desktop`) |
+| macOS `.dmg` | **not yet run** (the macOS job was still queued when this was written) | the script, workflow and signing steps are therefore untested |
+
+Two things found only by running it on CI: (1) the first Windows run failed because NSIS was given a relative
+script path and its `!cd` left the repository; (2) the first Linux run built the packages on the newest
+Ubuntu, whose glibc is too new for 22.04/24.04 and Debian 12 — packages now build on `ubuntu-22.04`, the oldest
+base, and are installed on all of the above.
 
 ## Details of the Arch and systemd checks (2026-11-17)
 
