@@ -189,6 +189,9 @@ impl Raw {
     pub fn connect(env: &Env) -> Self {
         let s = UnixStream::connect(env.signer()).unwrap();
         s.set_read_timeout(Some(Duration::from_secs(10))).unwrap();
+        // A write must not wait forever either: on macOS a Unix socket buffers only a few KiB, so a
+        // large write to a peer that has stopped reading blocks (this hung a macOS CI job for hours).
+        s.set_write_timeout(Some(Duration::from_secs(10))).unwrap();
         Raw {
             writer: s.try_clone().unwrap(),
             reader: BufReader::new(s),
@@ -200,6 +203,27 @@ impl Raw {
             Ok(0) => None,
             Ok(_) => Some(serde_json::from_str(&l).unwrap_or_else(|_| panic!("not JSON: {l:?}"))),
             Err(_) => None,
+        }
+    }
+    /// True if the daemon closes this connection within `t` (replies still in flight are drained first).
+    /// A read that merely times out is *not* "closed": that is exactly the difference that hid a bug where
+    /// the daemon decided to end a connection but never closed the socket.
+    pub fn closed_within(&mut self, t: Duration) -> bool {
+        let _ = self.reader.get_ref().set_read_timeout(Some(t));
+        let start = Instant::now();
+        loop {
+            let mut l = String::new();
+            match self.reader.read_line(&mut l) {
+                Ok(0) => return true,
+                Ok(_) if start.elapsed() > t => return false,
+                Ok(_) => {}
+                Err(e) => {
+                    return !matches!(
+                        e.kind(),
+                        std::io::ErrorKind::WouldBlock | std::io::ErrorKind::TimedOut
+                    );
+                }
+            }
         }
     }
     pub fn write(&mut self, line: &str) {

@@ -4,6 +4,7 @@
     clippy::unwrap_used,
     clippy::expect_used,
     clippy::panic,
+    clippy::print_stderr,
     clippy::indexing_slicing
 )]
 
@@ -740,6 +741,7 @@ async fn idle_auto_lock_follows_user_activity_not_client_traffic() {
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
 async fn malformed_and_hostile_ipc_is_contained() {
+    let t0 = std::time::Instant::now();
     let env = Env::new();
     let d = boot(&env).await;
     let (_c, _a) = vault_with_accounts(&env, 1);
@@ -747,6 +749,8 @@ async fn malformed_and_hostile_ipc_is_contained() {
     let mut r = Raw::connect(&env);
     assert_eq!(r.login(&me)["ok"], true);
 
+    // Stage markers: CI runs this binary unbuffered on macOS, so a stall names the stage it is in.
+    eprintln!("[hostile-ipc] 1 logged in ({:?})", t0.elapsed());
     let name_of = |v: serde_json::Value| v["error"]["name"].as_str().unwrap_or("").to_owned();
     let mut pings = 0;
     // Garbage / wrong shape / unknown fields / bad ids / non-object params.
@@ -772,6 +776,10 @@ async fn malformed_and_hostile_ipc_is_contained() {
         r.write(&json!({"id": format!("ok{pings}"), "method": "ping"}).to_string());
         assert_eq!(r.read().unwrap()["result"], "pong");
     }
+    eprintln!(
+        "[hostile-ipc] 2 malformed lines answered ({:?})",
+        t0.elapsed()
+    );
     // Unknown and foreign methods (including control-channel methods) are unsupported here.
     for m in [
         "nope",
@@ -794,6 +802,10 @@ async fn malformed_and_hostile_ipc_is_contained() {
     r.write(&json!({"id": "c1", "method": "cancel", "params": {"id": "nothing"}}).to_string());
     assert_eq!(name_of(r.read().unwrap()), "invalid_params");
 
+    eprintln!(
+        "[hostile-ipc] 3 replay and cancel checked ({:?})",
+        t0.elapsed()
+    );
     // Five malformed lines in a row end the connection.
     let mut r2 = Raw::connect(&env);
     r2.login(&me);
@@ -801,14 +813,27 @@ async fn malformed_and_hostile_ipc_is_contained() {
         r2.write("garbage");
         let _ = r2.read();
     }
-    r2.write(&json!({"id": "x", "method": "ping"}).to_string());
-    assert!(r2.read().is_none());
+    assert!(
+        r2.closed_within(Duration::from_secs(3)),
+        "five malformed lines must close the socket, not just stop answering"
+    );
 
+    eprintln!(
+        "[hostile-ipc] 4 five malformed lines closed the connection ({:?})",
+        t0.elapsed()
+    );
     // A NUL byte and a >1 MiB line.
     let mut r3 = Raw::connect(&env);
     r3.login(&me);
     r3.write("{\"id\":\"1\",\"method\":\"pi\0ng\"}");
-    assert!(r3.read().is_none(), "NUL in a line closes the connection");
+    assert!(
+        r3.closed_within(Duration::from_secs(3)),
+        "NUL in a line closes the connection"
+    );
+    eprintln!(
+        "[hostile-ipc] 5 NUL byte closed the connection ({:?})",
+        t0.elapsed()
+    );
     let mut r4 = Raw::connect(&env);
     r4.login(&me);
     let huge = format!(
@@ -816,12 +841,54 @@ async fn malformed_and_hostile_ipc_is_contained() {
         "a".repeat(1_100_000)
     );
     r4.write(&huge);
-    assert_eq!(name_of(r4.read().unwrap()), "payload_too_large");
-    assert!(r4.read().is_none(), "and the connection is closed");
+    eprintln!(
+        "[hostile-ipc] 6 oversized line written ({:?})",
+        t0.elapsed()
+    );
+    // The daemon answers `payload_too_large` and closes. Closing a socket that still has unread input makes
+    // macOS reset the connection, which can discard that answer before the client reads it, so the reply is
+    // best-effort here; what must hold everywhere is that the connection ends and the daemon stays up.
+    if let Some(v) = r4.read() {
+        assert_eq!(name_of(v), "payload_too_large");
+    }
+    assert!(
+        r4.closed_within(Duration::from_secs(3)),
+        "and the connection is closed"
+    );
+    eprintln!(
+        "[hostile-ipc] 7 oversized line refused ({:?})",
+        t0.elapsed()
+    );
 
     // A client that sends nothing but junk to an unauthenticated slot does not exhaust the daemon.
     let (_id, mut sc) = client(&env, "still works");
     sc.ping().unwrap();
+    eprintln!(
+        "[hostile-ipc] 8 the daemon still serves; shutting down ({:?})",
+        t0.elapsed()
+    );
+    d.shutdown().await;
+}
+
+/// Regression: `serve` kept its own sender of the writer channel alive, so after a connection ended (client
+/// EOF, idle timeout, or the daemon's own decision) the writer task never finished, the socket stayed open and
+/// the connection kept counting against `max_connections` until the daemon exited.
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn finished_connections_release_their_slot() {
+    let env = Env::new();
+    let d = boot_with(&env, |c| c.limits.max_connections = 3).await;
+    let me = Identity::generate();
+    for i in 0..12 {
+        let mut r = Raw::connect(&env);
+        // `login` panics if the daemon refused the connection (no hello arrives).
+        let reply = r.login(&me);
+        assert_eq!(
+            reply["ok"], true,
+            "connection {i} was refused: finished connections must free their slot"
+        );
+        drop(r); // the client hangs up
+        tokio::time::sleep(Duration::from_millis(30)).await;
+    }
     d.shutdown().await;
 }
 

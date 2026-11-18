@@ -114,7 +114,7 @@ where
     let (rd, mut wr) = tokio::io::split(stream);
     let mut reader = BufReader::new(rd);
     let (tx, mut rx) = mpsc::channel::<Vec<u8>>(256);
-    let writer = tokio::spawn(async move {
+    let mut writer = tokio::spawn(async move {
         while let Some(bytes) = rx.recv().await {
             if write_bytes_async(&mut wr, bytes).await.is_err() {
                 break;
@@ -145,7 +145,18 @@ where
     // Let request tasks drain their final messages before the writer closes.
     tokio::time::sleep(Duration::from_millis(20)).await;
     drop(conn);
-    let _ = writer.await;
+    // Close the connection for real. The writer task ends when every sender of its channel is gone, and the
+    // socket closes when the writer drops its half. This function used to keep its own `tx` alive here, so
+    // the wait below never finished: a connection the daemon had ended (client EOF, idle timeout, five
+    // malformed lines, an oversized line) stayed open and kept counting against `max_connections`.
+    drop(tx);
+    // Bounded, in case a late request task still holds a sender: the connection must end regardless.
+    if tokio::time::timeout(Duration::from_secs(2), &mut writer)
+        .await
+        .is_err()
+    {
+        writer.abort();
+    }
 }
 
 async fn reject_hello(tx: &mpsc::Sender<Vec<u8>>, code: ErrorCode, msg: &str) -> Option<Conn> {

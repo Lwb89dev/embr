@@ -67,10 +67,18 @@ caught by tests, one (AAD over KDF fields) is redundant by design and was docume
   waiting 20 s for the daemon's `connect` response. It did not fail again in 25 isolated reruns, 15 reruns with
   32 busy loops saturating the CPU, 24 reruns of the whole `nip46` binary (idle and loaded), nor in the
   following clean `makepkg` (33 test binaries, 0 failures). Treated as load-induced, not proven so.
-* **macOS tests hung once.** In GitHub's `macos-latest` job `cargo test` ran for hours without finishing
-  (runs `eabb8b4`, `a6d9421`; the macOS job had been queued ~5 h before that). I have no macOS machine and no
-  log of the hang, so the cause is unknown. CI now bounds every test job (30 min) and runs the macOS tests
-  sequentially and unbuffered so that a repeat names the test.
+* **The macOS hang, explained (2026-11-18).** Every GitHub `macos-latest` test job since Milestone 3 sat in
+  `cargo test` until the 6 h limit, and because GitHub gives a public repository only five macOS slots, those
+  stuck jobs also starved every later macOS job for hours. The log of one that finally timed out showed all
+  tests passing except `malformed_and_hostile_ipc_is_contained`. Cause: a **daemon bug**, not a macOS quirk —
+  `client_api::serve` kept its own sender of the writer channel alive, so a connection the daemon had ended
+  was never closed (see `SECURITY.md`). Linux hid it: the test "passed" because its 10 s read timeout counted
+  as "closed" (three stages took exactly 10 s each; the whole e2e suite took 30 s) and Linux's large socket
+  buffers absorbed the 1.1 MB write that macOS's small ones turned into an endless block. Fixed, with two
+  regression tests that fail on the old code (`finished_connections_release_their_slot`, and the hostile-IPC
+  test now requires a real close within 3 s); the e2e suite now takes 2.6 s. Raw test sockets also got a write
+  timeout, the control client a read timeout, and CI bounds every test job. **Not yet confirmed on macOS**: the
+  macOS jobs were still queued when this was written.
 * Windows named pipes are implemented with a user-only DACL; the `windows-latest` CI job passed on commit
   `a6d9421`, but I have not looked at the per-test output and nobody has run it on a real Windows machine.
   macOS CI had not finished when this was written.

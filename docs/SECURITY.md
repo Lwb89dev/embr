@@ -134,6 +134,15 @@ process, only that the call reported success.
   notification crate) was fixed by pinning `time` 0.3.47, which needs Rust 1.88 (the GUI needs 1.95 anyway).
 
 ## Findings while building Milestones 5–7
+* **Connections the daemon ended were never closed (found 2026-11-18, via a hung macOS CI job; fixed).**
+  In `client_api::serve` the original sender of the writer channel stayed alive, so after *any* end of a client
+  connection (client EOF, idle timeout, five malformed lines, an oversized line, a NUL byte) the daemon waited
+  for its writer task forever: the socket stayed open and the connection kept counting against
+  `max_connections`. Effect: a client that connected and left, or a hostile one that sent junk, permanently used
+  a slot and a file descriptor until the daemon restarted, so enough of them would have refused every new
+  client (an availability problem; no key or permission was ever exposed). The control channel was not
+  affected. Fix: drop the sender and bound the wait. The tests had passed because a read timeout was accepted
+  as proof of closure; they now require a real close and a freed slot.
 * **A fuzzer found a bug in relay-URL validation** (`nip46_uri`, within 40 s): the URL parser strips leading
   control characters and percent-encodes others; the length limit was checked on the raw input but the
   *normalised* (longer) form was what got stored and later failed re-validation. Fixed: control characters and
