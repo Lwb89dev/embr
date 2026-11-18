@@ -42,12 +42,25 @@ A benchmark-found bug: the first run of this script showed a ~132 MiB peak, i.e.
 old 128 MiB default while the documents said 256 MiB. Fixed, and a test now pins the documented value
 (`the_default_kdf_cost_is_the_documented_one`).
 
-## Still not measured
-GUI size / RSS / startup (no GUI yet); battery impact; low-end ARM64 hardware; daemon crash-recovery time.
+## GUI and binaries (measured 2026-11-18)
+One machine (Arch/Omarchy, Hyprland/Wayland, release profile with fat LTO and stripped symbols). The GUI was
+started with `embr --demo approvals` (canned data, no daemon); memory read from `/proc/PID/status` three seconds
+after start; "window mapped" is polled from the compositor (`hyprctl clients`, ~20 ms granularity), so it
+includes that polling.
 
-## GUI spike (decides ADR-3) — not yet run
-Build an equivalent "approval window" (one window, a list, two buttons, a tray icon) in Slint and in
-Tauri 2; on a **clean** Ubuntu 24.04, Fedora and openSUSE container/VM record: package install size
-incl. dependencies, idle RSS (all processes, `smem -P`), cold start to first paint, tray behaviour on
-Wayland (Hyprland/GNOME/KDE) and X11, and screen-reader output (Orca). Gate for Slint: no blocker in the
-screen-reader test and a material idle-RSS/size advantage.
+| Measurement | Result |
+|---|---|
+| Size: `embr` / `embrd` / `embrctl` | 10.9 MiB / 4.9 MiB / 1.1 MiB |
+| `embr` window mapped after process start | 166, 173, 166 ms |
+| `embr` resident memory (VmRSS) | 125.7, 125.4, 125.4 MiB; peak equal; 14 threads |
+| `embrd` resident memory, idle, no vault | 4.5 MiB |
+
+Reading these: the GUI's RSS includes the OpenGL driver's mapped pages (partly shared with other programs) and
+egui's glyph atlas; I did not separate shared from private memory (`smem` was not used). The daemon number was
+taken with no vault unlocked, so it does not include a loaded vault or the 256 MiB transient of an Argon2id
+derivation (see above). Release `embr --demo` was **not** run on X11, in a container, or on another OS.
+
+## Still not measured
+GUI size and memory on macOS/Windows; GUI behaviour on X11, GNOME and KDE; package install size including
+distribution dependencies (no packages exist for the GUI); battery impact; low-end ARM64 hardware; daemon
+crash-recovery time.

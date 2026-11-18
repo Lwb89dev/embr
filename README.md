@@ -5,9 +5,11 @@
 Your private key stays in one small, encrypted, local process. Apps ask it to sign — they never see the key.</p>
 
 > **Status: pre-alpha.** Cryptographic core, encrypted vault, permission engine, signer daemon with
-> authenticated local IPC, NIP-46 remote signing (off by default), client SDK and a terminal control/approval
-> CLI are built and tested on Linux; an Arch package exists. There is **no GUI, no Windows support and no
-> `.deb`/`.rpm`/macOS/Windows installer yet.**
+> authenticated local IPC, NIP-46 remote signing (off by default), client SDK, a terminal control/approval
+> CLI and a desktop GUI (egui) are built and tested on Linux; an Arch package exists (daemon and CLI; it
+> does not ship the GUI yet). The Windows transport (named pipes) is implemented and its CI job is green,
+> but it has not been run by a person on a real Windows machine; macOS has not been run at all. There is
+> **no system tray, and no `.deb`/`.rpm`/macOS/Windows installer yet.**
 > It has **not been audited** — do not trust it with a key you cannot afford to lose.
 > Read [`docs/SECURITY.md`](docs/SECURITY.md) and [`docs/THREAT_MODEL.md`](docs/THREAT_MODEL.md).
 
@@ -31,9 +33,9 @@ off unless you turn it on.
 |---|---|---|
 | 1 | Research, threat model, architecture, workspace | **done** (this repo) |
 | 2 | Crypto core, encrypted vault, accounts, import/export, tests | **done** — official vectors, interop with `nostr-tools` |
-| 3 | Daemon, authenticated local IPC, policy engine, SDK, example client, CLI | **done on Linux/macOS** — Windows named pipes still open |
-| 4 | Desktop GUI, approvals, tray, notifications | planned |
-| 5 | NIP-46 remote signing | **done on Linux/macOS** — `bunker://` + `nostrconnect://`, interop with nostr-tools ([`docs/NIP46.md`](docs/NIP46.md)) |
+| 3 | Daemon, authenticated local IPC, policy engine, SDK, example client, CLI | **done on Linux**; Windows named pipes implemented (CI green, not hand-tested); macOS unverified |
+| 4 | Desktop GUI, approvals, tray, notifications | **done on Linux, except the tray** — egui app (`embr`): unlock, accounts, approvals, apps and permissions, remote signing, activity, notifications. **No tray yet**: with the window closed nothing notifies you, requests simply wait (and expire); the daemon keeps working. See [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) ADR-3 |
+| 5 | NIP-46 remote signing | **done on Linux** — `bunker://` + `nostrconnect://`, interop with nostr-tools ([`docs/NIP46.md`](docs/NIP46.md)) |
 | 6 | `.deb`, `.rpm`, Arch `PKGBUILD`, Windows installer, macOS `.dmg` (no AppImage) | planned |
 | 7 | Fuzzing, benchmarks, dependency review, release docs | planned |
 
@@ -85,5 +87,6 @@ See [`docs/DEVELOPER_GUIDE.md`](docs/DEVELOPER_GUIDE.md) and [`docs/TESTING.md`]
 | [`NIP46.md`](docs/NIP46.md) · [`INSTALLATION.md`](docs/INSTALLATION.md) · [`PACKAGING.md`](docs/PACKAGING.md) · [`RELEASE.md`](docs/RELEASE.md) | Plans and status for the later milestones |
 
 ## Licence
-MIT (see [`LICENSE`](LICENSE)). The GUI toolkit decision may make the *GUI binary* GPL-3.0; see ADR-3 in
-[`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md).
+MIT (see [`LICENSE`](LICENSE)). The GUI toolkit (egui) is MIT/Apache-2.0; the GUI binary additionally bundles
+fonts under OFL-1.1 and the Ubuntu Font Licence, recorded as per-crate exceptions in `deny.toml` (ADR-3 in
+[`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md)).

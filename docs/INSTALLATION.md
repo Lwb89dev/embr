@@ -1,6 +1,6 @@
 # Installation
 
-> **No installable package exists yet.** Build from source (below); Linux/macOS only.
+> **No installable package exists yet** (the Arch `PKGBUILD` installs the daemon and CLI only). Build from source (below).
 
 ## From source (developers)
 Linux/macOS/Windows with `rustup` (the pinned toolchain installs itself):
@@ -15,9 +15,15 @@ embrd &                       # user-level daemon; sockets in $XDG_RUNTIME_DIR/e
 embrctl init                  # create the vault; then: embrctl accounts add <label>
 embrctl watch                 # approve requests from apps in the terminal
 ```
-Linux and macOS only (Unix sockets). The `embr` GUI arrives in Milestone 4; there is no systemd
-unit, `.desktop` file or package yet (Milestone 6). **Back up your keys** (`embrctl accounts export`):
-a forgotten vault password cannot be recovered.
+The desktop app is a separate binary, `embr` (needs Rust 1.95; the rest of the workspace builds with 1.87):
+```bash
+cargo build --release -p embr-desktop     # target/release/embr
+embr                                      # starts without a daemon: shows "daemon not running" and a Start button
+embr --demo [screen]                      # canned data, no daemon, for looking around (screens: approvals, accounts, apps, remote, settings, activity)
+```
+There is no `.desktop` file or tray icon yet, and no package ships the GUI (Milestone 6). With the window
+closed there are no notifications. **Back up your keys** (`embrctl accounts export`): a forgotten vault
+password cannot be recovered.
 
 ## Planned packages (Milestone 6)
 | Platform | Format | Status |

@@ -64,7 +64,7 @@ separation of concerns.
 | `embr-nip46` | NIP-46: URIs, NIP-44 JSON-RPC over kind 24133, small relay client (rustls, NIP-42 AUTH, reconnection), signer service with replay/freshness/rate-limit defences, in-process test relay. | **[built]** 12 tests + daemon e2e |
 | `apps/embrd` | The daemon: two sockets, policy, approvals queue, audit log, idle auto-lock, throttled unlock. | **[built]** 23 tests (19 e2e) |
 | `apps/embrctl` | CLI + terminal approval UI (`watch`). | **[built]** 1 e2e test |
-| `apps/embr` | Desktop GUI (ADR-3). | **[planned]** |
+| `apps/embr-desktop` | Desktop GUI, binary `embr` (ADR-3): unlock/create vault, accounts, approvals, apps and permissions, remote signing (with QR), settings, activity, notifications; `--demo` mode with canned data. No tray. | **[built]** 20 tests (headless UI + backend against a real `embrd`) |
 
 Workspace lints: `unsafe_code = "forbid"` everywhere (relaxed only in `embr-platform`, each
 `unsafe` block justified), `unwrap/expect/panic/indexing` warnings promoted to errors by CI.
@@ -126,35 +126,53 @@ separate endpoint so clients cannot approve. Compared with Omostrich's single co
 per-app identity, unapproved `sign_internal`) and Notary's loopback HTTP + bearer, we use the same
 transport primitives as the client API but different credentials and no TCP.
 
-### ADR-3 — GUI toolkit: Slint (provisional) vs Tauri 2
-*Provisional decision: **Slint**, to be confirmed by a measured spike before Milestone 4 ships.*
-The measurements below are **deliberately blank**: I have not built either toolkit yet and will not
-invent numbers. The spike procedure is in `BENCHMARKS.md`; the decision flips if the gates fail.
+### ADR-3 — GUI toolkit: egui/eframe (decided; Slint and Tauri 2 considered)
+*Decided, and built.* The GUI is `apps/embr-desktop` (binary `embr`), written with **egui/eframe 0.37**
+(immediate mode, glow/OpenGL, winit for Wayland and X11, AccessKit for accessibility).
 
-| Criterion | Slint | Tauri 2 | Evidence status |
-|---|---|---|---|
-| Executable size | *to measure* | *to measure* (excludes the system WebView) | spike |
-| Idle RSS | *to measure* | *to measure* (WebKitGTK is multi-process) | spike |
-| Startup latency | *to measure* | *to measure* | spike |
-| Runtime deps on Linux | windowing (Wayland/X11), fontconfig/freetype; **no GTK, no WebView** | `webkit2gtk-4.1`, GTK3 (+ appindicator for tray) | known from each project's docs; webkit2gtk-4.1 / gtk3 are installed on the dev machine, so this machine would not reveal a missing-dependency problem — test on a clean Ubuntu/Fedora/openSUSE container |
-| Distro reach | independent of GTK version | tied to distro WebKitGTK (needs 4.1: Debian ≥ 12, Ubuntu ≥ 22.04, Fedora, openSUSE) | documented |
-| Tray / notifications | not built in: use `ksni` (pure-Rust StatusNotifierItem) on Linux, `tray-icon` on macOS/Windows, `notify-rust` | built-in tray API, notifications plugin | documented; M4 spike |
-| Accessibility | AccessKit integration (maturity to be tested with Orca/NVDA/VoiceOver) | inherits the browser's a11y tree (generally the most mature) | **risk for Slint** — test with a real screen reader |
-| Security boundary | no JS engine, no webview attack surface, no `npm` supply chain | CSP + capability allow-list; still a JS runtime and an HTML renderer processing untrusted event text | architectural |
-| Rendering untrusted text safely | all text is inert by construction | must avoid `innerHTML`; strict CSP | architectural |
-| Licence | GPL-3.0 **or** royalty-free desktop licence **or** commercial (**confirm terms on slint.dev before release**) | MIT / Apache-2.0 | **open decision, see below** |
-| Maintainability | single Rust workspace, declarative `.slint` UI | Rust + web front-end (toolchain, dependency churn) | judgement |
+*Why egui:* permissive licence (MIT/Apache-2.0); a single Rust workspace with no JS toolchain, no web view
+and no HTML renderer processing untrusted event text (all text is drawn as inert glyphs); the UI is plain
+functions over a `Snapshot`, which made it testable headless (`ui::tests`, 13 tests) without a display.
 
-*Why Slint is provisionally preferred:* the task description asks for a security utility with low
-idle RAM, small installs and no heavyweight runtime; Slint has no web engine and no JS toolchain,
-and a smaller attack surface for rendering untrusted text. *Why this may flip:* (a) screen-reader
-support is inadequate in our test; (b) idle RSS/size advantage is not material in the spike;
-(c) its licence is unacceptable.
+*Why not Slint:* the earlier provisional choice. Its free licence is GPL-3.0 (or a royalty-free desktop
+licence with attribution terms I did not confirm), which would have made the GUI binary GPL without the
+maintainer's decision. I never built it, so I have no measurements for it.
 
-**Open decision for the maintainer:** linking Slint under GPL-3.0 makes the *GUI binary* GPL-3.0
-(libraries and daemon stay MIT; the combined work is GPL). The alternatives are Slint's royalty-free
-desktop licence (attribution requirements) or Tauri (permissive). Because the GUI is only a client
-of the control channel, this choice can be reversed later without touching key handling.
+*Why not Tauri 2:* needs WebKitGTK 4.1 + GTK3 on Linux and a JS runtime; its security story depends on
+a CSP and on never using `innerHTML` for attacker-controlled text. I never built it either, so any
+size/RAM comparison would be invented; none is claimed.
+
+**Measured on the development machine** (Arch/Omarchy, Hyprland/Wayland, `--release`, fat LTO, stripped by
+the profile; `embr --demo approvals`, i.e. no daemon): 
+
+| | Value |
+|---|---|
+| `embr` size | 10.9 MiB |
+| `embrd` / `embrctl` size | 4.9 MiB / 1.1 MiB |
+| Window mapped after start | 166, 173, 166 ms (three runs, polling the compositor every ~20 ms) |
+| GUI resident memory, 3 s after start | 125.7, 125.4, 125.4 MiB; 14 threads |
+| `embrd` resident memory, idle | 4.5 MiB |
+| Linked shared libraries (`ldd`) | `libc`, `libm`, `libgcc_s` only; Wayland/X11/xkbcommon/GL are loaded with `dlopen` |
+
+The GUI's RSS is **not small**: it counts the OpenGL driver pages mapped into the process (shared with
+other applications, not separated here) and egui's font atlas. It is the reason the daemon is a
+separate process: the GUI can be closed and only the 4.5 MiB daemon stays resident. A
+clean-container check of the runtime libraries a fresh Ubuntu/Fedora needs has **not** been done.
+
+**Costs of this choice (honest list):**
+* egui/eframe 0.37 require **Rust 1.95**; `embr-desktop` declares `rust-version = "1.95"` while the
+  libraries and daemon keep 1.87 (ADR-8).
+* AccessKit's Linux backend pulls `zvariant`/`zbus_names`/`zvariant_derive` (RustSec "unmaintained",
+  merged into zbus 6). They are accepted in `deny.toml` with a reason and a review date; they are in the GUI
+  binary only.
+* The GUI binary bundles fonts (OFL-1.1, Ubuntu Font Licence) and, on Windows, two Boost-licensed crates;
+  these are per-crate exceptions in `deny.toml`, not tree-wide allowances.
+* egui keeps its own copies of typed text, so the GUI is not a place where secrets are scrubbed reliably
+  (`SECURITY.md`).
+* Accessibility is compiled in but **untested with a screen reader**. There is **no system tray**
+  (`ksni`/`tray-icon` would add another D-Bus/GTK dependency tree; not done).
+
+Because the GUI is only a client of the control channel, replacing it never touches key handling.
 
 ### ADR-4 — Crate names `embr-*` instead of `signer-*`
 *Decided.* Generic names such as `signer-core` are unusable on crates.io and ambiguous in
@@ -187,7 +205,9 @@ NIP-44-encrypted end to end, key material never touches `ring`, and a minimal ha
 *Decided.* `rust-version = 1.87`, set because a RustSec advisory (`ctutils`, a constant-time
 helper reached through `nostr → scrypt`) is only fixed in releases that need ≥ 1.87. Distribution
 packaging builds with a pinned toolchain from `rust-toolchain.toml` and vendored dependencies
-(`cargo vendor`), so old distro `rustc` versions are not a constraint.
+(`cargo vendor`), so old distro `rustc` versions are not a constraint. Exception: `embr-desktop` declares
+1.95 because egui 0.37 requires it, and the lock file pins `time` 0.3.47 (RUSTSEC-2026-0009, reached through
+the macOS notification crate; it needs 1.88), i.e. above the libraries' 1.87.
 
 ## 7. What is deliberately absent
 No telemetry, analytics, auto-update phone-home, advertising, hosted dependency or "cloud sync".

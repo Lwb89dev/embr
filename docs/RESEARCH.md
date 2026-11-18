@@ -284,11 +284,11 @@ discovery, and `nostrconnect://` with a mandatory `secret`. Amber also implement
 | Local IPC (planned) | `tokio` + `interprocess`/native `AF_UNIX`, `rustix` for `SO_PEERCRED` | MIT/Apache-2.0 | to be evaluated in M3 |
 | NIP-46 transport (planned) | `nostr-connect`, `nostr-sdk` relay pool | MIT | to be evaluated in M5 |
 | Linux keyring (planned) | `secret-service` / `keyring` crate | MIT/Apache-2.0 | opt-in only, see `SECURITY.md` |
-| Notifications / tray (planned) | `notify-rust`; `ksni` (Linux SNI, pure Rust) / `tray-icon` | MIT/Apache-2.0 | to be evaluated in M4 |
+| Notifications (used) / tray (not built) | `notify-rust` (used); `ksni` / `tray-icon` (evaluated on paper, not adopted) | MIT/Apache-2.0 | M4 |
 
 Licence compatibility: everything above is MIT/Apache-2.0/CC0, compatible with Embr's **MIT**
-licence. The one open point is the GUI toolkit (see `ARCHITECTURE.md` ADR-3: Slint is GPL-3.0 /
-royalty-free-desktop / commercial).
+licence, with two notes on the GUI binary (ADR-3: egui is MIT/Apache-2.0, but it bundles OFL-1.1 /
+Ubuntu-Font-Licence fonts and, on Windows, BSL-1.0 crates, all accepted by name in `deny.toml`).
 
 ## 5. Consequences for Embr (summary)
 

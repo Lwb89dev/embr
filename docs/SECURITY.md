@@ -2,7 +2,8 @@
 
 > **Embr has not been independently audited and must not be described as production-ready.**
 > It is pre-alpha software: a tested cryptographic core and vault, a daemon with authenticated local IPC
-> and a permission engine, NIP-46 remote signing (off by default), a CLI; no GUI, Linux/macOS only.
+> and a permission engine, NIP-46 remote signing (off by default), a CLI and a desktop GUI; Linux is the only
+> platform exercised by hand.
 > Do not put a key you cannot afford to lose into any build of it.
 
 Read `THREAT_MODEL.md` first: it states what is and is not defended against, especially regarding
@@ -90,6 +91,40 @@ Details in `NIP46.md`; tests in `apps/embrd/tests/nip46*.rs` and `crates/embr-ni
 | A lock answers in-flight remote requests, stops new ones, disconnects; pairings survive lock/unlock; revocation works | `revocation_blocking_and_lock_over_nip46` |
 | Independent client interop (nostr-tools), both flows | `nip46_interop.rs` |
 
+## Implemented and tested in Milestone 4 (desktop GUI, `embr`)
+The GUI is a thin client of the control channel: it holds no key, stores nothing, and needs the vault password
+(or the in-memory control token that dies with every lock) for everything.
+| Property | Test |
+|---|---|
+| Against a real `embrd`: create vault, add account, lock clears the account list, a wrong password does not unlock, an app pairs, the user approves the *exact stored event*, the signature verifies, the log holds no message content | `backend::tests::*` (4) |
+| With the vault locked, no screen shows an account, app or request text (the "unlocked by another client" and daemon-down states are not separately tested) | `ui::tests::a_locked_vault_shows_nothing_private` |
+| Everything typed that is secret (vault password fields, `nsec`, NIP-49 password, export password) is zeroised whenever the vault is not unlocked | `ui::tests::locking_wipes_what_was_typed` |
+| Drawing a screen sends no command to the daemon without a user action (clicks themselves are not simulated) | `ui::tests::every_screen_renders_and_drawing_alone_sends_nothing` |
+| Every "remember" choice the UI offers is one the policy engine accepts (direct-message kinds: once/session only; any-kind: never permanent; unscoped decrypt: at most an hour) — a UX guarantee, the engine stays the authority | `ui::tests::every_choice_the_ui_offers_is_accepted_by_the_policy_engine` |
+| Notifications carry the sanitised app name and the operation only; markup characters in the (untrusted) name are escaped on freedesktop servers | `notify::tests::*` |
+
+The GUI process also drops core dumps (`RLIMIT_CORE=0`; `NoNewPrivs` read back from `/proc` on Linux) and
+calls the same `PR_SET_DUMPABLE=0` code as the daemon; I could not confirm non-dumpability from outside the
+process, only that the call reported success.
+
+**GUI limitations (not hidden):**
+* egui's text fields keep their own copies (undo history, galley caches) of what was typed. Embr zeroises its
+  own `String`s only; the GUI's memory is **not** `mlock`ed and may still contain a typed password until the
+  process exits. The daemon, which holds the keys, is the hardened process; the GUI never holds one.
+* **No anti-spoof word** (the threat model proposed one): the GUI cannot prove to the user that a prompt is
+  genuine, and synthetic input on X11 can click "Approve". Wayland compositors block that by default.
+* The GUI does not offer reveal-`nsec` (only the control API does).
+* **No system tray.** With the window closed, requests are not announced and wait until they expire.
+* **Accessibility (AccessKit) is compiled in but has not been tested with a screen reader.**
+* Desktop notifications are shown by the desktop's notification server, which can log them and show them on a
+  locked screen; they contain only the app's name and the operation.
+* Linux/Wayland on one machine is the only platform where the window has been looked at.
+* `cargo deny` accepts three "unmaintained" advisories (`zvariant`, `zbus_names`, `zvariant_derive`,
+  RUSTSEC-2026-0370/71/72) with a written reason and a review date (2027-03-01): they are reached only through
+  eframe → AccessKit → AT-SPI, only in the GUI binary (checked: `embrd`/`embrctl`/libraries do not depend on
+  them), and are about maintenance, not a vulnerability. The `time` advisory RUSTSEC-2026-0009 (macOS
+  notification crate) was fixed by pinning `time` 0.3.47, which needs Rust 1.88 (the GUI needs 1.95 anyway).
+
 ## Findings while building Milestones 5–7
 * **A fuzzer found a bug in relay-URL validation** (`nip46_uri`, within 40 s): the URL parser strips leading
   control characters and percent-encodes others; the length limit was checked on the raw input but the
@@ -119,7 +154,7 @@ Details in `NIP46.md`; tests in `apps/embrd/tests/nip46*.rs` and `crates/embr-ni
 
 ## Known limitations (also in the threat model)
 * **Not verified for NIP-46:** `wss://` against a real public relay (TLS is compiled and linked but untested), Amber/`nak` interop.
-* **Milestone 3 gaps:** no Windows transport (named pipes with a user-only DACL); no spawn-bound
+* **Milestone 3 gaps:** the Windows transport (named pipes with a user-only DACL) exists but has only run in CI; no spawn-bound
   clients; no `SO_PEERPIDFD`; passwords arrive in `String` fields of request structs (not zeroised;
   they also pass through `serde_json::Value`); the control token and client key files are plain
   same-user secrets; the audit log is an ordinary file; only smoke-level fuzzing and no independent review.
@@ -139,7 +174,7 @@ Details in `NIP46.md`; tests in `apps/embrd/tests/nip46*.rs` and `crates/embr-ni
 
 ## Not yet done (must precede any "production-ready" claim)
 Independent code review and audit · long-running fuzzing (only 40 s smoke runs so far, see `TESTING.md`) · penetration test of the
-IPC and approval flow · platform tests on macOS/Windows · reproducible builds · signed releases.
+IPC and approval flow · hand-testing on macOS/Windows · testing the GUI with a screen reader · reproducible builds · signed releases.
 
 ## Practices
 * `#![forbid(unsafe_code)]` workspace-wide (exception: future `embr-platform`, each use justified).

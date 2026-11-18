@@ -9,7 +9,17 @@ all-features = true
 # written justification and an expiry date.
 version = 2
 yanked = "deny"
-ignore = []
+# Reviewed 2026-11-17; revisit by 2027-03-01 or when AccessKit moves to zbus >= 6, whichever is first.
+ignore = [
+    # `zvariant`, `zbus_names` and `zvariant_derive` are "merged into zbus 6", not vulnerable. They are
+    # reached only through eframe -> AccessKit's AT-SPI backend (screen-reader support on Linux) and
+    # only by the desktop app. `embrd`, `embrctl` and every library crate do not depend on them
+    # (checked with `cargo tree -p embrd -i zvariant`). Dropping AccessKit would remove accessibility
+    # from the GUI, which we judge worse than an unmaintained-but-unvulnerable D-Bus encoder.
+    { id = "RUSTSEC-2026-0370", reason = "zvariant merged into zbus 6; GUI-only via AccessKit AT-SPI" },
+    { id = "RUSTSEC-2026-0371", reason = "zbus_names merged into zbus 6; GUI-only via AccessKit AT-SPI" },
+    { id = "RUSTSEC-2026-0372", reason = "zvariant_derive merged into zbus 6; GUI-only via AccessKit AT-SPI" },
+]
 
 [licenses]
 version = 2
@@ -29,6 +39,15 @@ allow = [
     "CDLA-Permissive-2.0",
 ]
 confidence-threshold = 0.9
+
+# Per-crate exceptions, each for a permissive licence that we do not want to allow tree-wide.
+exceptions = [
+    # Fonts bundled into the GUI binary as *data* by egui (Ubuntu-Light, Hack, emoji fonts…).
+    { name = "epaint_default_fonts", allow = ["OFL-1.1", "Ubuntu-font-1.0"] },
+    # Boost Software License (MIT-like), Windows-only clipboard support in the GUI.
+    { name = "clipboard-win", allow = ["BSL-1.0"] },
+    { name = "error-code", allow = ["BSL-1.0"] },
+]
 
 [bans]
 multiple-versions = "warn"

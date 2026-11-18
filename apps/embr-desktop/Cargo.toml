@@ -1,0 +1,36 @@
+[package]
+name = "embr-desktop"
+description = "Embr desktop app: unlock the vault, manage accounts, approve requests (a thin client of the daemon's control channel)"
+version.workspace = true
+edition.workspace = true
+# egui/eframe 0.37 require Rust 1.95; the libraries and the daemon keep the workspace MSRV (1.87).
+rust-version = "1.95"
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+
+[[bin]]
+name = "embr"
+path = "src/main.rs"
+
+[dependencies]
+embr-core.workspace = true
+embr-ipc.workspace = true
+embr-client.workspace = true
+embr-policy.workspace = true
+embr-platform.workspace = true
+zeroize.workspace = true
+eframe = { version = "0.37", default-features = false, features = ["default_fonts", "glow", "wayland", "x11", "accesskit", "clipboard", "system_fonts"] }
+notify-rust = { version = "4", default-features = false, features = ["z"] }
+qrcode = { version = "0.14", default-features = false }
+serde_json.workspace = true
+
+[dev-dependencies]
+embrd = { path = "../embrd", version = "0.0.1" }
+embr-crypto.workspace = true
+embr-vault.workspace = true
+tempfile = "3"
+tokio = { version = "1", default-features = false, features = ["rt-multi-thread"] }
+
+[lints]
+workspace = true

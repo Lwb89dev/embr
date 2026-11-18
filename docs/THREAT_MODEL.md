@@ -108,9 +108,10 @@ steal. Precisely:
   and trivial name spoofing, **not** theft of the client's key file by same-user code.
 * Malware that **drives the approval UI** (synthetic input on X11; accessibility APIs on some OSes)
   or **draws a fake prompt**. Wayland compositors block synthetic input by default; X11 does not.
-  Mitigations are partial: the approval window shows a per-session **anti-spoof word** known only
-  to the daemon and UI (M4), approvals need a physical interaction, and high-risk operations
-  (decrypt, kinds 4/14/1059, key export) default to "ask every time".
+  Mitigations are partial: the **anti-spoof word** (a per-session word known only to the daemon and
+  UI) that was planned for M4 is **not implemented**; approvals are a click in the GUI (nothing proves
+  the click was physical on X11); high-risk operations (decrypt, kinds 4/14/1059) can only be allowed
+  once or for the session, or for at most an hour (decrypt).
 * **Keyloggers / screen capture** that record the vault password or displayed plaintext.
 * Any attacker who can modify the Embr binaries or the user's autostart entries. (Packages
   are signed where certificates exist; users on a compromised account lose.)
@@ -132,7 +133,7 @@ steal. Precisely:
   per-client rate limits, no plaintext in logs.
 * **Limit:** a relay learns *that* a signer and client talk (metadata), not what.
 
-### A7 — malicious content in prompts (M4)
+### A7 — malicious content in prompts (implemented in M3/M4; GUI shows the daemon-sanitised text)
 * Event content and tags shown to the user are **rendered as inert text**: control and
   bidirectional-override characters are made visible, length is capped with an explicit "N more
   bytes" marker, URLs are not linkified, no markup/HTML is interpreted.
@@ -171,7 +172,7 @@ on the real platform in M3 and recorded in `TESTING.md`.)
   can write key material to disk — a finding Omostrich's author hit.
 * **Screen capture / clipboard:** displayed plaintext and any copied `nsec` are exposed to anything
   that can capture them. Embr never puts a secret on the clipboard unprompted; reveal-nsec
-  needs the vault password again and is time-limited (M4).
+  needs the vault password again (control API only; the GUI does not offer it).
 * **Panics:** release builds use `panic = "abort"`, so a panic ends the process instead of unwinding
   through code that holds secrets; the vault's atomic writes mean a crash never corrupts it
   (**tested**: no temp files left, rollback on failed write).
