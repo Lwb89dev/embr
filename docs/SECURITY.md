@@ -157,7 +157,7 @@ process, only that the call reported success.
 * **Milestone 3 gaps:** the Windows transport (named pipes with a user-only DACL) exists but has only run in CI; no spawn-bound
   clients; no `SO_PEERPIDFD`; passwords arrive in `String` fields of request structs (not zeroised;
   they also pass through `serde_json::Value`); the control token and client key files are plain
-  same-user secrets; the audit log is an ordinary file; only smoke-level fuzzing and no independent review.
+  same-user secrets; the audit log is an ordinary file; only minutes of fuzzing per target and no independent review.
 * **Memory scrubbing is best-effort.** Secrets live in zeroising containers, but Rust cannot prove
   no other copy exists; swap, hibernation and core dumps are not yet blocked (daemon hardening is
   M3). The `argon2` crate's `zeroize` feature is enabled and wipes the initial hash and block hash
@@ -173,7 +173,7 @@ process, only that the call reported success.
   only and will be labelled as such everywhere.
 
 ## Not yet done (must precede any "production-ready" claim)
-Independent code review and audit · long-running fuzzing (only 40 s smoke runs so far, see `TESTING.md`) · penetration test of the
+Independent code review and audit · long-running fuzzing (5 minutes per target so far, see `TESTING.md`) · penetration test of the
 IPC and approval flow · hand-testing on macOS/Windows · testing the GUI with a screen reader · reproducible builds · signed releases.
 
 ## Practices

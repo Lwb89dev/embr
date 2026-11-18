@@ -8,7 +8,7 @@ cargo +nightly fuzz run ipc_lines -- -max_total_time=300     # targets: ipc_line
 
 ## Running
 ```bash
-cargo test --workspace                  # unit + integration + e2e (180 tests; ~45 s)
+cargo test --workspace                  # unit + integration + e2e (about 200 tests; ~45 s)
 cargo clippy --workspace --all-targets -- -D warnings
 cargo fmt --all -- --check
 cargo deny check                        # advisories, licences, bans, sources (needs: cargo install cargo-deny --locked)
@@ -73,14 +73,18 @@ caught by tests, one (AAD over KDF fields) is redundant by design and was docume
 * Windows named pipes are implemented with a user-only DACL; the `windows-latest` CI job passed on commit
   `a6d9421`, but I have not looked at the per-test output and nobody has run it on a real Windows machine.
   macOS CI had not finished when this was written.
-* **Fuzzing is minimal so far.** `fuzz/` holds eight libFuzzer targets (IPC framing + every strict wire type,
+* **Fuzzing is modest.** `fuzz/` holds eight libFuzzer targets (IPC framing + every strict wire type,
   event templates incl. sign-and-verify, vault file parsing, stored policy JSON with a default-deny/DM-kind
   invariant, key/ciphertext parsing, handshake proofs, NIP-46 URIs/relay URLs, NIP-46 events). The first six ran
   40 s each and the NIP-46 ones 60 s each (after a fix, see below) on 2026-11-17: ≈26 M executions in total.
   **The NIP-46 URI target found a real bug within its first 40 s** (relay URL validation); after the fix both
-  NIP-46 targets ran clean. Still a smoke test, not assurance. No seed corpora, no structure-aware
-  mutators, no sanitizers beyond libFuzzer's defaults. A weekly 5-minute-per-target CI run is configured but has
-  not executed yet. NIP-46 message parsing will get its own target with Milestone 5.
+  NIP-46 targets ran clean. On 2026-11-18 the **Fuzz workflow was dispatched once on GitHub** (ubuntu-latest,
+  300 s per target, fresh corpus each time): all eight jobs passed, **no crash**, with these executions —
+  `ipc_lines` 2.8 M, `event_template` 20.1 M, `vault_file` 1.6 M (slow: Argon2), `policy_json` 28.2 M,
+  `crypto_inputs` 7.5 M, `auth_proof` 22.5 M, `nip46_uri` 2.4 M, `nip46_event` 26.4 M — about 111.6 M in total.
+  That is still minutes per target, not the hours a release needs, and says nothing about paths the fuzzer did
+  not reach: no persisted seed corpus, no structure-aware mutators, no sanitizers beyond libFuzzer's defaults.
+  The weekly schedule (Sundays 03:17 UTC) has not fired yet.
 * No test of OS suspend/resume, SIGKILL/crash recovery beyond stale-socket cleanup, package upgrade/uninstall.
 * Interop with `nak`, Amber, or any NIP-46 implementation: not yet.
 * No timing/side-channel testing of our own code (we rely on libsecp256k1/RustCrypto).

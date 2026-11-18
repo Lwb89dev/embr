@@ -36,8 +36,8 @@ off unless you turn it on.
 | 3 | Daemon, authenticated local IPC, policy engine, SDK, example client, CLI | **done on Linux**; Windows named pipes implemented (CI green, not hand-tested); macOS unverified |
 | 4 | Desktop GUI, approvals, tray, notifications | **done on Linux, except the tray** — egui app (`embr`): unlock, accounts, approvals, apps and permissions, remote signing, activity, notifications. **No tray yet**: with the window closed nothing notifies you, requests simply wait (and expire); the daemon keeps working. See [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) ADR-3 |
 | 5 | NIP-46 remote signing | **done on Linux** — `bunker://` + `nostrconnect://`, interop with nostr-tools ([`docs/NIP46.md`](docs/NIP46.md)) |
-| 6 | `.deb`, `.rpm`, Arch `PKGBUILD`, Windows installer, macOS `.dmg` (no AppImage) | planned |
-| 7 | Fuzzing, benchmarks, dependency review, release docs | planned |
+| 6 | `.deb`, `.rpm`, Arch `PKGBUILD`, Windows installer, macOS `.dmg` (no AppImage) | **built and install-tested on CI** for `.deb` (Ubuntu 22.04/24.04/latest, Debian 12), `.rpm` (Fedora), Windows installer; Arch package builds; **macOS `.dmg` not yet run**; **nothing is signed or published** ([`docs/PACKAGING.md`](docs/PACKAGING.md)) |
+| 7 | Fuzzing, benchmarks, dependency review, release docs | **done as far as it goes**: 8 fuzz targets (minutes each, 1 bug found), measured benchmarks, a [dependency review](docs/DEPENDENCIES.md) (not a source audit), release docs. **No independent audit, no long fuzzing campaign, no signed release** |
 
 ### Try it (Linux/macOS, from source)
 ```bash

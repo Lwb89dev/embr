@@ -10,7 +10,8 @@ Checklist a first release must satisfy, with the state of each item:
    AccessKit-only "unmaintained" advisories are ignored in `deny.toml` with a reason and a review date
    (2027-03-01).*
 3. Fuzzers (`fuzz/`) ran for a documented duration (hours, with seed corpora), findings fixed. *Not done:
-   only ~26 M executions in short runs (`TESTING.md`).*
+   one real bug found and fixed; 8 targets × 5 minutes on GitHub plus short local runs, ≈112 M executions in
+   total, no persisted corpora (`TESTING.md`).*
 4. Every `uses:` in `.github/workflows` pinned to a full commit SHA. *Done (2026-11-18).*
 5. Artefacts + `SHA256SUMS` + CycloneDX SBOM. *Built by the workflow.* Signatures only where real credentials
    exist — **none do**: no Apple Developer ID, no Windows code-signing certificate, no release GPG/minisign key.
