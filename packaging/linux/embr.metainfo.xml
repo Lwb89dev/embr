@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application">
+  <id>embr</id>
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>MIT</project_license>
+  <name>Embr</name>
+  <summary>A native Nostr signer: your keys stay in one encrypted local process</summary>
+  <description>
+    <p>
+      Embr keeps your Nostr private keys in a small, encrypted, local process. Apps on this computer, and
+      remote apps over NIP-46, ask it to sign or decrypt; you decide each request, and nothing is allowed
+      that you did not allow.
+    </p>
+    <p>
+      Pre-alpha software that has not been independently audited. Do not use a key you cannot afford to lose.
+    </p>
+  </description>
+  <launchable type="desktop-id">embr.desktop</launchable>
+  <url type="homepage">https://github.com/Lwb89dev/embr</url>
+  <url type="bugtracker">https://github.com/Lwb89dev/embr/issues</url>
+  <provides>
+    <binary>embr</binary>
+    <binary>embrd</binary>
+    <binary>embrctl</binary>
+  </provides>
+  <content_rating type="oars-1.1"/>
+</component>

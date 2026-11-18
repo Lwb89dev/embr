@@ -4,7 +4,7 @@ post_install() {
       systemctl --user enable --now embrd.service   # the signer daemon (runs as you, never as root)
       embrctl init                                  # create your vault (choose a strong password)
       embrctl accounts add main                     # or: embrctl accounts import <label>
-      embrctl watch                                 # approve requests from apps
+      embr                                          # the desktop app (or: embrctl watch, in a terminal)
     Back up your keys:  embrctl accounts export <id>   (a forgotten password cannot be recovered)
     Pre-alpha software, not audited: read /usr/share/doc/embr/docs/SECURITY.md
 MSG

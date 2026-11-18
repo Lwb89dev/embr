@@ -1,0 +1,12 @@
+[Desktop Entry]
+Type=Application
+Name=Embr
+GenericName=Nostr signer
+Comment=Decide which apps may sign and decrypt with your Nostr keys
+Exec=embr
+Icon=embr
+Terminal=false
+Categories=System;Security;
+Keywords=nostr;signer;keys;identity;nip-46;
+StartupWMClass=embr
+StartupNotify=true
