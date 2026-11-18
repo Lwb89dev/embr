@@ -29,7 +29,41 @@
 | `.deb` | `cargo deb` (metadata in `apps/embr-desktop/Cargo.toml`) | yes: file list, modes, `Depends` read back | see "Release workflow" below |
 | `.rpm` | `cargo generate-rpm` (same manifest) | yes: file list, requires read back (`bsdtar`, `strings`; `rpm` is not installed here) | see below |
 | Windows installer | NSIS, `packaging/windows/embr.nsi` | **no** (no Windows machine, no NSIS here) | see below |
-| macOS `.app` / `.dmg` | `packaging/macos/build_app.sh` | **no** (no macOS machine) | see below |
+| macOS `.app` / `.dmg` | `packaging/macos/build_dmg.sh` (calls `build_app.sh`) | **no** (no macOS machine) | see below; build-it-yourself instructions above |
+
+### Building and signing the macOS `.dmg` yourself
+Nobody who maintains this repository has a Mac or an Apple developer account, so the project ships **tools, not
+a signed binary**. On a Mac (macOS 11+, Xcode command line tools, Rust via rustup):
+
+```bash
+git clone https://github.com/Lwb89dev/embr && cd embr
+packaging/macos/build_dmg.sh                       # universal (Apple silicon + Intel) .dmg, ad-hoc signed
+ARCHS=native packaging/macos/build_dmg.sh          # this Mac's architecture only: much faster
+```
+
+The result is `dist/macos/Embr-<version>-macos.dmg`. To sign it with your own identity (needs a paid Apple
+Developer Program membership and a "Developer ID Application" certificate in your keychain):
+
+```bash
+CODESIGN_IDENTITY="Developer ID Application: Your Name (TEAMID)" packaging/macos/build_dmg.sh
+```
+
+and to notarise and staple it as well (an app-specific password from appleid.apple.com, not your Apple ID password):
+
+```bash
+CODESIGN_IDENTITY="Developer ID Application: Your Name (TEAMID)" \
+APPLE_ID=you@example.com APPLE_TEAM_ID=TEAMID APPLE_APP_PASSWORD=xxxx-xxxx-xxxx-xxxx \
+  packaging/macos/build_dmg.sh
+```
+
+Without a Mac: fork the repository, add the secrets listed in `docs/RELEASE.md` to the fork and run the
+**Release** workflow there; its `macos-dmg` job calls this same script on a GitHub macOS runner.
+
+What is and is not verified: the **ad-hoc path** runs on a GitHub macOS runner every time the release workflow
+runs (build both architectures, `lipo`, bundle, `.dmg`, mount it, run what is inside). The **Developer-ID signing
+and the notarisation** are untested — the maintainers cannot run them. If they fail for you, that is a bug worth
+reporting. Whatever you build, the bundle is only as trustworthy as the source you built it from: check the
+commit you are on, and see `docs/RELEASE.md` for the checksums of official artefacts.
 
 ### Release workflow (`.github/workflows/release.yml`)
 Runs on `v*` tags or by hand. It builds each artefact on a clean GitHub runner **and then installs it there**:

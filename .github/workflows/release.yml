@@ -213,21 +213,7 @@ jobs:
     timeout-minutes: 90
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
-      - run: |
-          rustup show
-          rustup target add aarch64-apple-darwin x86_64-apple-darwin
-      - name: Build both architectures
-        run: |
-          for t in aarch64-apple-darwin x86_64-apple-darwin; do
-            cargo build --release --locked --target "$t" -p embrd -p embrctl -p embr-desktop
-          done
-      - name: Universal binaries
-        run: |
-          mkdir universal
-          for b in embr embrd embrctl; do
-            lipo -create -output "universal/$b" "target/aarch64-apple-darwin/release/$b" "target/x86_64-apple-darwin/release/$b"
-          done
-          lipo -info universal/*
+      - run: rustup show
       - name: Import the Developer ID certificate (only if configured; UNTESTED)
         env:
           APPLE_CERT_P12_BASE64: ${{ secrets.APPLE_CERT_P12_BASE64 }}
@@ -248,20 +234,15 @@ jobs:
           security list-keychains -d user -s "$kc" login.keychain
           rm "$RUNNER_TEMP/cert.p12"
           echo "CODESIGN_IDENTITY=$APPLE_SIGNING_IDENTITY" >> "$GITHUB_ENV"
-      - name: Build Embr.app and the .dmg
-        run: packaging/macos/build_app.sh "${{ needs.version.outputs.version }}" universal dist
-      - name: Notarise (only if configured; UNTESTED)
+      # One script does everything (both architectures, lipo, Embr.app, signing, .dmg, notarisation when
+      # credentials exist): the same one anybody with a Mac can run, see docs/PACKAGING.md.
+      - name: Build Embr.app and the .dmg (packaging/macos/build_dmg.sh)
         env:
+          OUT: dist
           APPLE_ID: ${{ secrets.APPLE_ID }}
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
           APPLE_APP_PASSWORD: ${{ secrets.APPLE_APP_PASSWORD }}
-        run: |
-          if [ -z "$APPLE_ID" ] || [ -z "${CODESIGN_IDENTITY:-}" ]; then
-            echo "::notice::Not notarised (no credentials)."; exit 0
-          fi
-          dmg=$(ls dist/*.dmg)
-          xcrun notarytool submit "$dmg" --apple-id "$APPLE_ID" --team-id "$APPLE_TEAM_ID" --password "$APPLE_APP_PASSWORD" --wait
-          xcrun stapler staple "$dmg"
+        run: packaging/macos/build_dmg.sh "${{ needs.version.outputs.version }}"
       - name: Mount the .dmg and run what is inside
         run: |
           hdiutil attach dist/*.dmg -mountpoint /Volumes/EmbrCheck -nobrowse -readonly

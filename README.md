@@ -39,6 +39,26 @@ off unless you turn it on.
 | 6 | `.deb`, `.rpm`, Arch `PKGBUILD`, Windows installer, macOS `.dmg` (no AppImage) | **built and install-tested on CI**: `.deb` (Ubuntu 22.04/24.04/latest, Debian 12), `.rpm` (Fedora), Windows installer, universal macOS `.dmg`; Arch package builds; **nothing is signed or notarised, nothing is published** ([`docs/PACKAGING.md`](docs/PACKAGING.md)) |
 | 7 | Fuzzing, benchmarks, dependency review, release docs | **done as far as it goes**: 8 fuzz targets (minutes each, 1 bug found), measured benchmarks, a [dependency review](docs/DEPENDENCIES.md) (not a source audit), release docs. **No independent audit, no long fuzzing campaign, no signed release** |
 
+### macOS and Windows builds: who signs what
+The maintainer has no Apple hardware and no Apple developer account, so **the macOS app is not signed by us**.
+CI builds an ad-hoc-signed `.dmg` (it runs; Gatekeeper warns about it). If you want a properly signed — and
+notarised — one, you can build it yourself, from source, on your own Mac and with your own Developer ID, in
+one command (details in [`docs/PACKAGING.md`](docs/PACKAGING.md)):
+
+```bash
+CODESIGN_IDENTITY="Developer ID Application: Your Name (TEAMID)" \
+  packaging/macos/build_dmg.sh            # add APPLE_ID, APPLE_TEAM_ID, APPLE_APP_PASSWORD to notarise too
+```
+
+Everything that is needed to do that lives in this repository and is kept in step with the code in every
+commit: the script, the bundle layout, the icons, and the release workflow (which runs the very same script, so
+a fork with your Apple secrets configured produces signed releases without you touching a Mac). The ad-hoc
+path is exercised on a GitHub macOS runner whenever the release workflow runs; the Developer-ID signing and
+notarisation paths have **never been executed by us** — treat them as untested.
+
+**Windows:** the installer is built by CI and is unsigned (SmartScreen warns). Signing it and testing it by hand
+on a real Windows machine is planned for later, on another computer; until then Windows is only tested on CI.
+
 ### Try it (Linux/macOS, from source)
 ```bash
 cargo build --release -p embrd -p embrctl

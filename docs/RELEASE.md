@@ -19,6 +19,9 @@ Checklist a first release must satisfy, with the state of each item:
    (`APPLE_CERT_P12_BASE64`, `APPLE_CERT_PASSWORD`, `APPLE_SIGNING_IDENTITY`, `APPLE_ID`, `APPLE_TEAM_ID`,
    `APPLE_APP_PASSWORD`, `WINDOWS_CERT_PFX_BASE64`, `WINDOWS_CERT_PASSWORD`) and have **never been executed**.
    Until then the Windows installer triggers SmartScreen and the macOS app is ad-hoc signed (Gatekeeper warns).
+   Anybody with a Mac and an Apple Developer ID can produce a signed `.dmg` with `packaging/macos/build_dmg.sh`
+   (`PACKAGING.md`); the workflow's `macos-dmg` job calls the same script. Windows signing is deferred until a
+   Windows machine and a certificate are available.
 6. Threat model and `SECURITY.md` re-read against what was actually built; independent review
    scheduled/recorded before any "production" wording. *Not done.*
 
