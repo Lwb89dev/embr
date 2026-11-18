@@ -170,7 +170,7 @@ process, only that the call reported success.
   our policy; the three-line replacement lives in `embr-platform`.
 
 ## Known limitations (also in the threat model)
-* **Not verified for NIP-46:** `wss://` against a real public relay (TLS is compiled and linked but untested), Amber/`nak` interop.
+* **Not verified for NIP-46:** `wss://` against a real public relay (TLS against an in-process relay with a throw-away certificate **is** tested, including refusal of unknown-authority, wrong-name and expired certificates: `crates/embr-nip46/tests/tls.rs`), interop with `nak`.
 * **Milestone 3 gaps:** the Windows transport (named pipes with a user-only DACL) exists but has only run in CI; no spawn-bound
   clients; no `SO_PEERPIDFD`; passwords arrive in `String` fields of request structs (not zeroised;
   they also pass through `serde_json::Value`); the control token and client key files are plain

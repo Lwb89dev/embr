@@ -15,7 +15,7 @@
 
 ## Direct dependencies
 <!-- BEGIN GENERATED -->
-Graph: **539 packages** in total (including build/dev/platform-specific ones), 29 direct external dependencies, 11 workspace crates.
+Graph: **555 packages** in total (including build/dev/platform-specific ones), 30 direct external dependencies, 11 workspace crates.
 
 | Dependency | Version | Licence | Used by | Why |
 |---|---|---|---|---|
@@ -31,6 +31,7 @@ Graph: **539 packages** in total (including build/dev/platform-specific ones), 2
 | `nostr` | 0.45.7 | MIT | `embr-crypto`, `embr-nip46` | Nostr events, keys, NIP-01/04/06/19/44/49 (rust-nostr; all signing and NIP crypto) |
 | `notify-rust` | 4.17.0 | MIT/Apache-2.0 | `embr-desktop` | desktop notifications (metadata only) |
 | `qrcode` | 0.14.1 | MIT OR Apache-2.0 | `embr-desktop`, `embrctl` | QR code of a `bunker://` link |
+| `rcgen` | 0.14.7 | MIT OR Apache-2.0 | `embr-nip46` | throw-away TLS certificates for the test relay (feature `testing`; in no shipped program) |
 | `rpassword` | 7.5.5 | Apache-2.0 | `embrctl` | reading a password without echo in `embrctl` |
 | `rustix` | 1.1.6 | Apache-2.0 WITH LLVM-exception OR Apache-2.0 OR MIT | `embr-platform` | safe wrappers over Unix system calls (hardening, locks, sockets) |
 | `rustls` | 0.23.46 | Apache-2.0 OR ISC OR MIT | `embr-nip46` | TLS for `wss://` relays (ring provider; see ADR-9) |

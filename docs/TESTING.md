@@ -8,7 +8,7 @@ cargo +nightly fuzz run ipc_lines -- -max_total_time=300     # targets: ipc_line
 
 ## Running
 ```bash
-cargo test --workspace                  # unit + integration + e2e (about 200 tests; ~45 s)
+cargo test --workspace                  # unit + integration + e2e (210 tests on Linux; ~45 s)
 cargo clippy --workspace --all-targets -- -D warnings
 cargo fmt --all -- --check
 cargo deny check                        # advisories, licences, bans, sources (needs: cargo install cargo-deny --locked)
@@ -36,6 +36,7 @@ tests/interop/run.sh                    # needs Node >= 20; installs nostr-tools
 | `embrctl` e2e | 2 | the CLI against a real daemon: terminal approvals; opt-in remote signing and `bunker://` + QR |
 | `embr-nip46` unit | 11 | URI parsing (hostile URIs), NIP-44 JSON-RPC protocol (strictness, addressing, forged events), relay-URL regression from a fuzzer finding |
 | `embr-nip46/service` | 7 | the signer service against an in-process relay: round trip, replay, stale/future, rate limit before decryption, NIP-42 AUTH, reconnection after an outage, silence without relays |
+| `embr-nip46/tls` | 4 | **`wss://` over real TLS** against an in-process relay with a throw-away certificate: a full NIP-46 round trip; and the client **refuses** a certificate from an unknown authority, one issued for another host name, and an expired one (nothing reaches the relay or the handler). Mutation-checked: with certificate verification switched off, exactly the three refusal tests fail |
 | `embrd/nip46` e2e | 7 | NIP-46 through the real daemon: bunker pairing, signing and encryption with approvals, single-use secrets, account isolation by transport key, `nostrconnect://` (relays contacted only after approval), off-by-default/lock behaviour, revocation, replay/flood/outage |
 | `embrd/nip46_interop` | 2 | **nostr-tools `BunkerSigner` (independent JS client)** via `bunker://` and `nostrconnect://` |
 
@@ -67,7 +68,12 @@ caught by tests, one (AAD over KDF fields) is redundant by design and was docume
   hand with screenshots on one Hyprland/Wayland machine), mouse and keyboard interaction (no click is simulated),
   screen readers, X11, and everything on macOS and Windows. Desktop notifications were checked only by capturing the
   D-Bus `Notify` call on one machine (quickshell), not by looking at them.
-* NIP-46 `wss://` (TLS) is **not exercised** by any test (all use loopback `ws://`); real public relays are untested.
+* **NIP-46 `wss://` (TLS):** exercised against an in-process relay (`embr-nip46/tls`, above), including the
+  refusal of bad certificates. Still **not** covered: real public relays, the bundled Mozilla root list against a
+  real CA-signed certificate, revocation, and a `wss://` run *through the daemon* (the test-only trust override
+  lives in `embr-nip46`'s `testing` feature and is deliberately not plumbed into `embrd`). The positive test
+  replaces the trusted roots; the three refusal tests exercise the same code with the production roots or with
+  a root that does not match the name/validity.
 * The e2e suite uses real time for expiry/auto-lock (≈2 s waits); it passed 3 consecutive runs on
   2026-11-17 on Linux, but timing tests can flake on a heavily loaded CI machine.
 * **One unexplained failure.** During a local `makepkg` build (while I was also compiling a release build with

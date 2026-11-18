@@ -32,6 +32,7 @@ PURPOSE = {
     "qrcode": "QR code of a `bunker://` link",
     "rpassword": "reading a password without echo in `embrctl`",
     "rustix": "safe wrappers over Unix system calls (hardening, locks, sockets)",
+    "rcgen": "throw-away TLS certificates for the test relay (feature `testing`; in no shipped program)",
     "rustls": "TLS for `wss://` relays (ring provider; see ADR-9)",
     "serde": "(de)serialisation of every wire and storage type",
     "serde_json": "JSON for the protocols and the vault",

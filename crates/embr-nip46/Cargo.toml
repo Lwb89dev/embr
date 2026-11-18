@@ -14,7 +14,8 @@ required-features = ["testing"]
 
 [features]
 # An in-process Nostr relay used by tests and the interop harness. Never enabled in the daemon.
-testing = []
+# Also brings `rcgen`, to mint throw-away certificates for the TLS test relay.
+testing = ["dep:rcgen"]
 
 [dependencies]
 embr-core.workspace = true
@@ -34,6 +35,8 @@ tokio-tungstenite = { version = "0.30", default-features = false, features = ["h
 tokio-rustls = { version = "0.26", default-features = false, features = ["ring", "tls12"] }
 rustls = { version = "0.23", default-features = false, features = ["ring", "std", "tls12"] }
 webpki-roots = "1"
+# Test certificates only (feature `testing`); `ring`, not aws-lc, like the rest of the crate (ADR-9).
+rcgen = { version = "0.14", default-features = false, features = ["crypto", "ring"], optional = true }
 
 [dev-dependencies]
 embr-nip46 = { path = ".", features = ["testing"] }

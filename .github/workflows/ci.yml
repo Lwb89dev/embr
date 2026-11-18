@@ -92,6 +92,15 @@ jobs:
         with:
           command: check
           arguments: --locked
+      # Test-only crates must never reach a shipped program: `rcgen` (throw-away TLS certificates for the
+      # test relay, feature `testing`) is the only reason `ring` is allowed outside rustls (deny.toml).
+      - name: Test-only dependencies are absent from the shipped programs
+        run: |
+          for p in embrd embrctl embr-desktop; do
+            if cargo tree --locked -p "$p" -e normal | grep -E 'rcgen|yasna'; then
+              echo "::error::a test-only crate is in the dependency tree of $p"; exit 1
+            fi
+          done
 
   secrets:
     runs-on: ubuntu-latest

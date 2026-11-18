@@ -148,9 +148,39 @@ impl Service {
         cfg: ServiceConfig,
         parent: &CancellationToken,
     ) -> Arc<Service> {
+        Self::start_with(handler, cfg, parent, None)
+    }
+
+    /// Like [`Service::start`], but `wss://` relays are verified against `roots` instead of the bundled
+    /// Mozilla roots. Test-only (the `testing` feature is never enabled in the shipped programs).
+    #[cfg(feature = "testing")]
+    pub fn start_trusting(
+        handler: Arc<dyn Handler>,
+        cfg: ServiceConfig,
+        parent: &CancellationToken,
+        roots: Vec<rustls::pki_types::CertificateDer<'static>>,
+    ) -> Result<Arc<Service>, String> {
+        Ok(Self::start_with(
+            handler,
+            cfg,
+            parent,
+            Some(crate::relay::trusting_config(roots)?),
+        ))
+    }
+
+    fn start_with(
+        handler: Arc<dyn Handler>,
+        cfg: ServiceConfig,
+        parent: &CancellationToken,
+        tls: Option<Arc<rustls::ClientConfig>>,
+    ) -> Arc<Service> {
         let cancel = parent.child_token();
         let signers: Signers = Arc::default();
-        let (pool, rx) = Pool::new(Arc::new(AuthFromSigners(signers.clone())), cancel.clone());
+        let (pool, rx) = Pool::with_tls(
+            Arc::new(AuthFromSigners(signers.clone())),
+            cancel.clone(),
+            tls,
+        );
         let svc = Arc::new(Service {
             signers: signers.clone(),
             pool: pool.clone(),

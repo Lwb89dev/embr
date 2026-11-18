@@ -200,8 +200,10 @@ behaviour by default and makes the alternative an explicit, documented option.
 *Decided (the maintainer did not answer the question, so the safest default was taken).* NIP-46 needs
 `wss://`. OpenSSL/native-tls would add a C TLS stack to the trust base; `rustls` is memory-safe Rust. Its
 crypto provider here is `ring` (not `aws-lc-rs`, which needs a heavier C/asm build). `deny.toml` therefore
-allows `ring` **only as a dependency of `rustls`/`rustls-webpki`** and allows the `CDLA-Permissive-2.0`
-data licence of the Mozilla root list. TLS only protects metadata in transit: NIP-46 payloads are
+allows `ring` **only as a dependency of `rustls`/`rustls-webpki`** (and of `rcgen`, which mints throw-away
+certificates for the TLS test relay under the `testing` feature; CI fails if it ever appears in the dependency
+tree of `embrd`, `embrctl` or `embr-desktop`) and allows the `CDLA-Permissive-2.0` data licence of the Mozilla
+root list. TLS only protects metadata in transit: NIP-46 payloads are
 NIP-44-encrypted end to end, key material never touches `ring`, and a minimal hand-written relay client
 (~300 lines) was preferred over pulling the full `nostr-sdk` relay pool (database layers, gossip, NIP-65).
 

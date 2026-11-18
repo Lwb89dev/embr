@@ -96,6 +96,8 @@ pub struct Pool {
     events_tx: mpsc::Sender<Incoming>,
     auth: Arc<dyn AuthSigner>,
     cancel: CancellationToken,
+    /// `None` = the bundled Mozilla roots (always, outside tests).
+    tls: Option<Arc<rustls::ClientConfig>>,
 }
 
 fn now() -> u64 {
@@ -112,6 +114,26 @@ impl Pool {
         auth: Arc<dyn AuthSigner>,
         cancel: CancellationToken,
     ) -> (Arc<Pool>, mpsc::Receiver<Incoming>) {
+        Self::with_tls(auth, cancel, None)
+    }
+
+    /// Like [`Pool::new`], but a `wss://` relay is verified against `roots` **instead of** the bundled
+    /// Mozilla roots. Exists only so tests can talk TLS to an in-process relay with a throw-away
+    /// certificate; the `testing` feature is never enabled in the daemon, the CLI or the desktop app.
+    #[cfg(feature = "testing")]
+    pub fn new_trusting(
+        auth: Arc<dyn AuthSigner>,
+        cancel: CancellationToken,
+        roots: Vec<rustls::pki_types::CertificateDer<'static>>,
+    ) -> Result<(Arc<Pool>, mpsc::Receiver<Incoming>), String> {
+        Ok(Self::with_tls(auth, cancel, Some(trusting_config(roots)?)))
+    }
+
+    pub(crate) fn with_tls(
+        auth: Arc<dyn AuthSigner>,
+        cancel: CancellationToken,
+        tls: Option<Arc<rustls::ClientConfig>>,
+    ) -> (Arc<Pool>, mpsc::Receiver<Incoming>) {
         let (events_tx, events_rx) = mpsc::channel(512);
         let (pubkeys, _) = watch::channel(Vec::new());
         let pool = Arc::new(Pool {
@@ -121,6 +143,7 @@ impl Pool {
             events_tx,
             auth,
             cancel,
+            tls,
         });
         (pool, events_rx)
     }
@@ -164,15 +187,13 @@ impl Pool {
                         state: RelayState::Connecting,
                     },
                 );
-            tokio::spawn(relay_task(
-                url,
-                rx,
-                self.status.clone(),
-                self.events_tx.clone(),
-                self.auth.clone(),
-                self.pubkeys.subscribe(),
-                cancel,
-            ));
+            let link = Link {
+                status: self.status.clone(),
+                events: self.events_tx.clone(),
+                auth: self.auth.clone(),
+                tls: self.tls.clone(),
+            };
+            tokio::spawn(relay_task(url, rx, link, self.pubkeys.subscribe(), cancel));
         }
     }
 
@@ -256,25 +277,43 @@ trait Io: AsyncRead + AsyncWrite + Unpin + Send {}
 impl<T: AsyncRead + AsyncWrite + Unpin + Send> Io for T {}
 type Ws = tokio_tungstenite::WebSocketStream<Box<dyn Io>>;
 
+fn client_config(roots: rustls::RootCertStore) -> Result<Arc<rustls::ClientConfig>, String> {
+    let provider = Arc::new(rustls::crypto::ring::default_provider());
+    let builder = rustls::ClientConfig::builder_with_provider(provider)
+        .with_safe_default_protocol_versions()
+        .map_err(|e| format!("TLS setup failed: {e}"))?;
+    Ok(Arc::new(
+        builder.with_root_certificates(roots).with_no_client_auth(),
+    ))
+}
+
+/// A TLS client configuration that trusts exactly `roots` (tests only).
+#[cfg(feature = "testing")]
+pub(crate) fn trusting_config(
+    roots: Vec<rustls::pki_types::CertificateDer<'static>>,
+) -> Result<Arc<rustls::ClientConfig>, String> {
+    let mut store = rustls::RootCertStore::empty();
+    for r in roots {
+        store.add(r).map_err(|e| e.to_string())?;
+    }
+    client_config(store)
+}
+
 fn tls_config() -> Result<Arc<rustls::ClientConfig>, String> {
     static CONFIG: OnceLock<Result<Arc<rustls::ClientConfig>, String>> = OnceLock::new();
     CONFIG
         .get_or_init(|| {
-            let roots = rustls::RootCertStore {
+            client_config(rustls::RootCertStore {
                 roots: webpki_roots::TLS_SERVER_ROOTS.to_vec(),
-            };
-            let provider = Arc::new(rustls::crypto::ring::default_provider());
-            let builder = rustls::ClientConfig::builder_with_provider(provider)
-                .with_safe_default_protocol_versions()
-                .map_err(|e| format!("TLS setup failed: {e}"))?;
-            Ok(Arc::new(
-                builder.with_root_certificates(roots).with_no_client_auth(),
-            ))
+            })
         })
         .clone()
 }
 
-async fn connect(url: &str) -> Result<Ws, String> {
+async fn connect(
+    url: &str,
+    tls_override: Option<&Arc<rustls::ClientConfig>>,
+) -> Result<Ws, String> {
     let url = validate_relay(url).map_err(|e| e.to_string())?;
     let parsed = Url::parse(&url).map_err(|e| e.to_string())?;
     let host = parsed.host_str().ok_or("no host")?.to_owned();
@@ -287,7 +326,11 @@ async fn connect(url: &str) -> Result<Ws, String> {
     let stream: Box<dyn Io> = if tls {
         let name =
             rustls::pki_types::ServerName::try_from(host.clone()).map_err(|e| e.to_string())?;
-        let s = tokio_rustls::TlsConnector::from(tls_config()?)
+        let config = match tls_override {
+            Some(c) => c.clone(),
+            None => tls_config()?,
+        };
+        let s = tokio_rustls::TlsConnector::from(config)
             .connect(name, tcp)
             .await
             .map_err(|e| e.to_string())?;
@@ -311,19 +354,31 @@ fn set_state(status: &Mutex<BTreeMap<String, RelayStatus>>, url: &str, state: Re
     }
 }
 
-async fn relay_task(
-    url: String,
-    mut cmds: mpsc::Receiver<Cmd>,
+/// What a relay task shares with its pool.
+struct Link {
     status: Arc<Mutex<BTreeMap<String, RelayStatus>>>,
     events: mpsc::Sender<Incoming>,
     auth: Arc<dyn AuthSigner>,
+    tls: Option<Arc<rustls::ClientConfig>>,
+}
+
+async fn relay_task(
+    url: String,
+    mut cmds: mpsc::Receiver<Cmd>,
+    link: Link,
     mut pubkeys: watch::Receiver<Vec<String>>,
     cancel: CancellationToken,
 ) {
+    let Link {
+        status,
+        events,
+        auth,
+        tls,
+    } = link;
     let mut backoff = Duration::from_secs(1);
     loop {
         set_state(&status, &url, RelayState::Connecting);
-        match tokio::time::timeout(CONNECT_TIMEOUT, connect(&url)).await {
+        match tokio::time::timeout(CONNECT_TIMEOUT, connect(&url, tls.as_ref())).await {
             Ok(Ok(ws)) => {
                 set_state(&status, &url, RelayState::Connected);
                 let started = Instant::now();

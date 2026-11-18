@@ -2,7 +2,8 @@
 //!
 //! Supports NIP-01 `EVENT` / `REQ` / `CLOSE` with filters `kinds`, `#p`, `authors`, `ids`,
 //! `since`, `until`; optional NIP-42 `AUTH`; and test hooks to inspect stored events, count
-//! connections and forcibly drop them. **Not** a production relay (no limits, no persistence).
+//! connections and forcibly drop them; [`TestRelay::start_tls`] serves `wss://` with a throw-away
+//! certificate ([`TlsIdentity`]). **Not** a production relay (no limits, no persistence).
 #![allow(
     clippy::unwrap_used,
     clippy::expect_used,
@@ -18,7 +19,9 @@ use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
 
 use embr_crypto::Event;
 use futures_util::{SinkExt, StreamExt};
+use rustls::pki_types::{CertificateDer, PrivateKeyDer, PrivatePkcs8KeyDer};
 use serde_json::{Value, json};
+use tokio::io::{AsyncRead, AsyncWrite};
 use tokio::net::TcpListener;
 use tokio::sync::mpsc;
 use tokio_tungstenite::tungstenite::Message;
@@ -54,6 +57,55 @@ pub struct TestRelay {
     addr: SocketAddr,
     inner: Arc<Inner>,
     stop: CancellationToken,
+    tls: bool,
+}
+
+/// A freshly generated, self-signed certificate and its key, for a TLS test relay.
+pub struct TlsIdentity {
+    /// The certificate (DER). A client that should trust this relay is given exactly this as a root.
+    pub cert: CertificateDer<'static>,
+    key: Vec<u8>,
+}
+
+impl TlsIdentity {
+    /// Valid now, for the given DNS names / IP addresses (e.g. `"127.0.0.1"`).
+    pub fn valid_for(names: &[&str]) -> TlsIdentity {
+        Self::build(names, false)
+    }
+
+    /// For the given names, but expired years ago.
+    pub fn expired_for(names: &[&str]) -> TlsIdentity {
+        Self::build(names, true)
+    }
+
+    fn build(names: &[&str], expired: bool) -> TlsIdentity {
+        let names: Vec<String> = names.iter().map(|n| (*n).to_owned()).collect();
+        let key = rcgen::KeyPair::generate().unwrap();
+        let mut params = rcgen::CertificateParams::new(names).unwrap();
+        if expired {
+            params.not_before = rcgen::date_time_ymd(2000, 1, 1);
+            params.not_after = rcgen::date_time_ymd(2001, 1, 1);
+        }
+        let cert = params.self_signed(&key).unwrap();
+        TlsIdentity {
+            cert: cert.der().clone(),
+            key: key.serialize_der(),
+        }
+    }
+
+    fn acceptor(&self) -> tokio_rustls::TlsAcceptor {
+        let provider = Arc::new(rustls::crypto::ring::default_provider());
+        let cfg = rustls::ServerConfig::builder_with_provider(provider)
+            .with_safe_default_protocol_versions()
+            .unwrap()
+            .with_no_client_auth()
+            .with_single_cert(
+                vec![self.cert.clone()],
+                PrivateKeyDer::from(PrivatePkcs8KeyDer::from(self.key.clone())),
+            )
+            .unwrap();
+        tokio_rustls::TlsAcceptor::from(Arc::new(cfg))
+    }
 }
 
 fn matches(f: &Value, ev: &Event) -> bool {
@@ -132,6 +184,15 @@ impl Inner {
 impl TestRelay {
     /// Starts a relay on a free loopback port.
     pub async fn start(opts: Options) -> TestRelay {
+        Self::start_inner(opts, None).await
+    }
+
+    /// Starts a relay that speaks TLS (`wss://127.0.0.1:<port>`) with `identity`'s certificate.
+    pub async fn start_tls(opts: Options, identity: &TlsIdentity) -> TestRelay {
+        Self::start_inner(opts, Some(identity.acceptor())).await
+    }
+
+    async fn start_inner(opts: Options, tls: Option<tokio_rustls::TlsAcceptor>) -> TestRelay {
         let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
         let addr = listener.local_addr().unwrap();
         let inner = Arc::new(Inner {
@@ -145,23 +206,41 @@ impl TestRelay {
         });
         let stop = CancellationToken::new();
         let (i2, s2) = (inner.clone(), stop.clone());
+        let is_tls = tls.is_some();
         tokio::spawn(async move {
             loop {
                 tokio::select! {
                     () = s2.cancelled() => return,
                     r = listener.accept() => {
                         let Ok((sock, _)) = r else { continue };
-                        tokio::spawn(handle(i2.clone(), sock, s2.child_token()));
+                        let (inner, cancel, tls) = (i2.clone(), s2.child_token(), tls.clone());
+                        // The handshake runs in the connection's own task, so a client that fails it
+                        // (that is what the negative tests do) cannot stall the accept loop.
+                        tokio::spawn(async move {
+                            match tls {
+                                Some(acceptor) => {
+                                    if let Ok(stream) = acceptor.accept(sock).await {
+                                        handle(inner, stream, cancel).await;
+                                    }
+                                }
+                                None => handle(inner, sock, cancel).await,
+                            }
+                        });
                     }
                 }
             }
         });
-        TestRelay { addr, inner, stop }
+        TestRelay {
+            addr,
+            inner,
+            stop,
+            tls: is_tls,
+        }
     }
 
-    /// `ws://127.0.0.1:<port>`.
+    /// `ws://127.0.0.1:<port>`, or `wss://…` for a TLS relay.
     pub fn url(&self) -> String {
-        format!("ws://{}", self.addr)
+        format!("{}://{}", if self.tls { "wss" } else { "ws" }, self.addr)
     }
 
     /// Currently open connections.
@@ -203,7 +282,11 @@ impl TestRelay {
     }
 }
 
-async fn handle(inner: Arc<Inner>, sock: tokio::net::TcpStream, cancel: CancellationToken) {
+async fn handle<S: AsyncRead + AsyncWrite + Unpin>(
+    inner: Arc<Inner>,
+    sock: S,
+    cancel: CancellationToken,
+) {
     let Ok(ws) = tokio_tungstenite::accept_async(sock).await else {
         return;
     };

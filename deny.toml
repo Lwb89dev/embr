@@ -61,7 +61,10 @@ deny = [
     # Key material is handled by RustCrypto/libsecp256k1 only. `ring` is allowed *solely* as the TLS
     # provider of rustls (transport to wss:// relays, ADR-9): it never sees a key, and NIP-46 content
     # is NIP-44-encrypted end to end regardless of TLS.
-    { name = "ring", wrappers = ["rustls", "rustls-webpki"] },
+    # The one other direct user is `rcgen`, which mints throw-away certificates for the TLS test relay
+    # (`embr-nip46` feature `testing`). It is absent from the dependency tree of `embrd`, `embrctl` and
+    # `embr-desktop`; CI checks that (job `supply-chain`).
+    { name = "ring", wrappers = ["rustls", "rustls-webpki", "rcgen"] },
 ]
 
 [sources]
