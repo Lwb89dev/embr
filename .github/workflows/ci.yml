@@ -10,6 +10,13 @@ on:
 permissions:
   contents: read
 
+# A newer push to the same branch supersedes the CI run of the older one. Without this, a burst of commits
+# queued dozens of jobs for commits nobody cares about anymore; GitHub gives a public repository only five
+# macOS slots, so that queue (together with a hung test, see docs/TESTING.md) kept the newest commit waiting for hours.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
 env:
   CARGO_TERM_COLOR: always
   RUSTFLAGS: "-D warnings"
