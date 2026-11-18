@@ -142,8 +142,16 @@ jobs:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
       - run: rustup show
       - run: cargo build --release --locked -p embrd -p embrctl -p embr-desktop
-      - name: Install NSIS
-        run: choco install nsis --no-progress -y
+      - name: Install NSIS (retried, because the Chocolatey feed times out now and then and choco still exits 0)
+        shell: pwsh
+        run: |
+          $nsis = "${env:ProgramFiles(x86)}\NSIS\makensis.exe"
+          for ($i = 1; $i -le 4 -and -not (Test-Path $nsis); $i++) {
+            choco install nsis --no-progress -y
+            if (-not (Test-Path $nsis)) { Write-Host "attempt $i did not install NSIS"; Start-Sleep -Seconds (20 * $i) }
+          }
+          if (-not (Test-Path $nsis)) { throw "NSIS could not be installed after 4 attempts" }
+          & $nsis /VERSION
       - name: Build the installer
         shell: pwsh
         run: |
