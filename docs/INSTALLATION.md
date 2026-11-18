@@ -33,7 +33,7 @@ password cannot be recovered.
 | Debian / Ubuntu / Mint / Pop!_OS | `.deb` | built on Ubuntu 22.04 by the release workflow and installed and run with `apt` on Ubuntu 22.04, 24.04, latest and Debian 12 (`PACKAGING.md`); no release is published |
 | Fedora / openSUSE | `.rpm` | built and installed with `dnf` in a Fedora container by the workflow; **openSUSE not covered** (library package names differ) |
 | Arch / Omarchy / EndeavourOS / Manjaro | `PKGBUILD` (`embr-git`) | builds and tests locally and in CI; ships the daemon, CLI **and** the GUI; not on the AUR |
-| macOS (Apple Silicon + Intel) | `.app` in a universal `.dmg` | workflow written; **not yet run** (queued) — will be ad-hoc signed only, not notarised |
+| macOS (Apple Silicon + Intel) | `.app` in a universal `.dmg` | built as a universal binary, mounted and run on a macOS runner (Apple Silicon); **ad-hoc signed only, not notarised** |
 | Windows 10/11 x64 | per-user NSIS installer | built, silently installed, run and uninstalled on a Windows runner; **unsigned** (SmartScreen warns) |
 | **AppImage** | **never** — explicitly excluded | — |
 

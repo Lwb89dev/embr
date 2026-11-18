@@ -7,9 +7,8 @@ Your private key stays in one small, encrypted, local process. Apps ask it to si
 > **Status: pre-alpha.** Cryptographic core, encrypted vault, permission engine, signer daemon with
 > authenticated local IPC, NIP-46 remote signing (off by default), client SDK, a terminal control/approval
 > CLI and a desktop GUI (egui) with a Linux tray helper are built and tested on Linux. Packages exist for Arch,
-> `.deb`, `.rpm` and a Windows installer, each built and install-tested on GitHub's runners (a macOS `.dmg` is
-> written but had not run when this was written). The Windows transport (named pipes) is implemented and its CI
-> job is green, but nobody has run it on a real Windows machine; macOS has not been run at all. **Nothing is
+> `.deb`, `.rpm`, a Windows installer and a macOS `.dmg`, each built and install-tested on GitHub's runners. The Windows transport (named pipes) is implemented and its CI
+> job is green, but nobody has run it on a real Windows machine; macOS has only ever run on CI runners (the packaged programs start and the daemon answers there; its full test suite is being re-verified after a daemon fix, see `docs/TESTING.md`). **Nothing is
 > signed or published, and there is no tray on Windows or macOS.**
 > It has **not been audited** — do not trust it with a key you cannot afford to lose.
 > Read [`docs/SECURITY.md`](docs/SECURITY.md) and [`docs/THREAT_MODEL.md`](docs/THREAT_MODEL.md).
@@ -34,10 +33,10 @@ off unless you turn it on.
 |---|---|---|
 | 1 | Research, threat model, architecture, workspace | **done** (this repo) |
 | 2 | Crypto core, encrypted vault, accounts, import/export, tests | **done** — official vectors, interop with `nostr-tools` |
-| 3 | Daemon, authenticated local IPC, policy engine, SDK, example client, CLI | **done on Linux**; Windows named pipes implemented (CI green, not hand-tested); macOS unverified |
+| 3 | Daemon, authenticated local IPC, policy engine, SDK, example client, CLI | **done on Linux**; Windows named pipes implemented (CI green, not hand-tested); on macOS the daemon starts and answers on a CI runner, its test suite there still to be confirmed |
 | 4 | Desktop GUI, approvals, tray, notifications | **done on Linux** — egui app (`embr`): unlock, accounts, approvals, apps and permissions, remote signing, activity, notifications; plus `embr --tray`, a small resident tray icon (Linux only) that shows how many requests wait and notifies you while the window is closed. **No tray on Windows or macOS**: there, with the window closed, nothing notifies you and requests wait (and expire). See [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) ADR-3 |
 | 5 | NIP-46 remote signing | **done on Linux** — `bunker://` + `nostrconnect://`, interop with nostr-tools ([`docs/NIP46.md`](docs/NIP46.md)) |
-| 6 | `.deb`, `.rpm`, Arch `PKGBUILD`, Windows installer, macOS `.dmg` (no AppImage) | **built and install-tested on CI** for `.deb` (Ubuntu 22.04/24.04/latest, Debian 12), `.rpm` (Fedora), Windows installer; Arch package builds; **macOS `.dmg` not yet run**; **nothing is signed or published** ([`docs/PACKAGING.md`](docs/PACKAGING.md)) |
+| 6 | `.deb`, `.rpm`, Arch `PKGBUILD`, Windows installer, macOS `.dmg` (no AppImage) | **built and install-tested on CI**: `.deb` (Ubuntu 22.04/24.04/latest, Debian 12), `.rpm` (Fedora), Windows installer, universal macOS `.dmg`; Arch package builds; **nothing is signed or notarised, nothing is published** ([`docs/PACKAGING.md`](docs/PACKAGING.md)) |
 | 7 | Fuzzing, benchmarks, dependency review, release docs | **done as far as it goes**: 8 fuzz targets (minutes each, 1 bug found), measured benchmarks, a [dependency review](docs/DEPENDENCIES.md) (not a source audit), release docs. **No independent audit, no long fuzzing campaign, no signed release** |
 
 ### Try it (Linux/macOS, from source)

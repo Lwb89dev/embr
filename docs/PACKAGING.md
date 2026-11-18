@@ -46,7 +46,7 @@ provenance attestations (never published automatically).
 | `.rpm` on Fedora (container) | passed | same checks with `dnf`; openSUSE is **not** covered |
 | Windows installer (`embr-0.0.1-setup.exe`, 5.1 MB) | passed | silent install, installed `embrd`/`embrctl` run, the installed daemon answers over its named pipe, shortcut and uninstall entry exist, silent uninstall removes files and registry key. Unsigned. Does **not** prove the GUI window opens, nor behaviour on Windows 10. |
 | CycloneDX SBOMs, version check | passed | one SBOM per binary (`embrd`, `embrctl`, `embr-desktop`) |
-| macOS `.dmg` | **not yet run** (the macOS job was still queued when this was written) | the script, workflow and signing steps are therefore untested |
+| macOS `.dmg` (universal, `Embr-0.0.1-macos.dmg`) | passed (run on commit `9cdab2b`, the first macOS job GitHub gave a slot to) | both architectures built and merged with `lipo` (`x86_64 arm64`), `Info.plist` valid, ad-hoc signature verified, the `.dmg` mounted, `embrd`/`embrctl`/`embr --version` run from inside it, and the daemon started on macOS and answered `vault: Missing`. Ad-hoc signed only, **not notarised** (Gatekeeper will warn); does **not** prove the window opens, nor behaviour on Intel hardware or older macOS (the runner is Apple Silicon) |
 
 Two things found only by running it on CI: (1) the first Windows run failed because NSIS was given a relative
 script path and its `!cd` left the repository; (2) the first Linux run built the packages on the newest
