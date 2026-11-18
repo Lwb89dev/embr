@@ -26,6 +26,7 @@ PURPOSE = {
     "futures-util": "async helpers for the relay client",
     "getrandom": "operating-system randomness (nonces, salts)",
     "hex": "hex encoding of keys and ids",
+    "ksni": "system tray icon (StatusNotifierItem over D-Bus), Linux only, `embr --tray`",
     "nostr": "Nostr events, keys, NIP-01/04/06/19/44/49 (rust-nostr; all signing and NIP crypto)",
     "notify-rust": "desktop notifications (metadata only)",
     "qrcode": "QR code of a `bunker://` link",

@@ -64,7 +64,7 @@ separation of concerns.
 | `embr-nip46` | NIP-46: URIs, NIP-44 JSON-RPC over kind 24133, small relay client (rustls, NIP-42 AUTH, reconnection), signer service with replay/freshness/rate-limit defences, in-process test relay. | **[built]** 12 tests + daemon e2e |
 | `apps/embrd` | The daemon: two sockets, policy, approvals queue, audit log, idle auto-lock, throttled unlock. | **[built]** 23 tests (19 e2e) |
 | `apps/embrctl` | CLI + terminal approval UI (`watch`). | **[built]** 1 e2e test |
-| `apps/embr-desktop` | Desktop GUI, binary `embr` (ADR-3): unlock/create vault, accounts, approvals, apps and permissions, remote signing (with QR), settings, activity, notifications; `--demo` mode with canned data. No tray. | **[built]** 20 tests (headless UI + backend against a real `embrd`) |
+| `apps/embr-desktop` | Desktop GUI, binary `embr` (ADR-3): unlock/create vault, accounts, approvals, apps and permissions, remote signing (with QR), settings, activity, notifications; `--demo` mode with canned data; `--tray`: Linux tray helper (icon, waiting-request count, notification; no key, no password). | **[built]** 25 tests (headless UI + backend and tray against a real `embrd`) |
 
 Workspace lints: `unsafe_code = "forbid"` everywhere (relaxed only in `embr-platform`, each
 `unsafe` block justified), `unwrap/expect/panic/indexing` warnings promoted to errors by CI.
@@ -147,11 +147,12 @@ the profile; `embr --demo approvals`, i.e. no daemon):
 
 | | Value |
 |---|---|
-| `embr` size | 10.9 MiB |
+| `embr` size | 11.7 MiB (10.9 MiB before the tray was added) |
 | `embrd` / `embrctl` size | 4.9 MiB / 1.1 MiB |
 | Window mapped after start | 166, 173, 166 ms (three runs, polling the compositor every ~20 ms) |
 | GUI resident memory, 3 s after start | 125.7, 125.4, 125.4 MiB; 14 threads |
 | `embrd` resident memory, idle | 4.5 MiB |
+| `embr --tray` resident memory, 4 s after start | 8.0, 7.8, 8.0 MiB; 5 threads |
 | Linked shared libraries (`ldd`) | `libc`, `libm`, `libgcc_s` only; Wayland/X11/xkbcommon/GL are loaded with `dlopen` |
 
 The GUI's RSS is **not small**: it counts the OpenGL driver pages mapped into the process (shared with
@@ -169,8 +170,11 @@ clean-container check of the runtime libraries a fresh Ubuntu/Fedora needs has *
   these are per-crate exceptions in `deny.toml`, not tree-wide allowances.
 * egui keeps its own copies of typed text, so the GUI is not a place where secrets are scrubbed reliably
   (`SECURITY.md`).
-* Accessibility is compiled in but **untested with a screen reader**. There is **no system tray**
-  (`ksni`/`tray-icon` would add another D-Bus/GTK dependency tree; not done).
+* Accessibility is compiled in but **untested with a screen reader**.
+* The tray exists on **Linux only** (`embr --tray`, via `ksni`, a StatusNotifierItem over D-Bus). Windows and
+  macOS have none: `tray-icon` would need an event loop of its own and GTK on Linux, and I cannot test either
+  platform here. A window cannot be hidden on Wayland (winit does not support it), which is why the tray is a
+  separate small process rather than "close to tray".
 
 Because the GUI is only a client of the control channel, replacing it never touches key handling.
 

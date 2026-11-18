@@ -10,3 +10,8 @@ Categories=System;Security;
 Keywords=nostr;signer;keys;identity;nip-46;
 StartupWMClass=embr
 StartupNotify=true
+Actions=Tray;
+
+[Desktop Action Tray]
+Name=Start the tray icon
+Exec=embr --tray

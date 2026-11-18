@@ -52,12 +52,13 @@ caught by tests, one (AAD over KDF fields) is redundant by design and was docume
 ## Not yet covered (honest list)
 * macOS and Windows have **never been run** — the CI matrix exists but has not executed. Unix-only
   tests (`0600`/`0700`) are `cfg(unix)`; the atomic-create race test is unverified on Windows.
-* **GUI coverage is partial.** `embr-desktop` has 20 tests: 13 render each screen headless through egui
+* **GUI coverage is partial.** `embr-desktop` has 25 tests: 13 render each screen headless through egui
   (nothing is drawn to a display) and check what is on screen and which commands come out, and 4 run the GUI's
   backend against a **real `embrd`** on real sockets (create vault, lock/unlock, wrong password, pair an SDK
-  client, approve, verify the signature, daemon appearing late), and 3 check the notification text (names escaped for markup, metadata only). Not covered: real window rendering (checked by
+  client, approve, verify the signature, daemon appearing late), 3 check the notification text (names escaped for markup, metadata only), and 5 cover the tray helper (its decisions, plus one that polls a real daemon through "no daemon → no vault → request waiting → daemon gone"). Not covered: real window rendering (checked by
   hand with screenshots on one Hyprland/Wayland machine), mouse and keyboard interaction (no click is simulated),
-  screen readers, desktop notifications, X11, and everything on macOS and Windows.
+  screen readers, X11, and everything on macOS and Windows. Desktop notifications were checked only by capturing the
+  D-Bus `Notify` call on one machine (quickshell), not by looking at them.
 * NIP-46 `wss://` (TLS) is **not exercised** by any test (all use loopback `ws://`); real public relays are untested.
 * The e2e suite uses real time for expiry/auto-lock (≈2 s waits); it passed 3 consecutive runs on
   2026-11-17 on Linux, but timing tests can flake on a heavily loaded CI machine.

@@ -59,6 +59,7 @@ package() {
   install -Dm755 target/release/embr    -t "$pkgdir/usr/bin/"
   install -Dm644 packaging/linux/embr.desktop -t "$pkgdir/usr/share/applications/"
   install -Dm644 packaging/linux/embr.metainfo.xml -t "$pkgdir/usr/share/metainfo/"
+  install -Dm644 packaging/linux/embr-tray-autostart.desktop -t "$pkgdir/usr/share/doc/$_pkgname/examples/"
   for size in 16 24 32 48 64 128 256 512; do
     install -Dm644 "packaging/icons/hicolor/${size}x${size}/apps/embr.png" \
       "$pkgdir/usr/share/icons/hicolor/${size}x${size}/apps/embr.png"

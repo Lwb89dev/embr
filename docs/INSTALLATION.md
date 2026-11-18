@@ -21,8 +21,10 @@ cargo build --release -p embr-desktop     # target/release/embr
 embr                                      # starts without a daemon: shows "daemon not running" and a Start button
 embr --demo [screen]                      # canned data, no daemon, for looking around (screens: approvals, accounts, apps, remote, settings, activity)
 ```
-There is no `.desktop` file or tray icon yet, and no package ships the GUI (Milestone 6). With the window
-closed there are no notifications. **Back up your keys** (`embrctl accounts export`): a forgotten vault
+The Linux packages ship a `.desktop` file and icons. `embr --tray` starts a small tray helper (Linux only: an icon, the
+number of waiting requests, and a notification when one arrives while no window is open); to start it at login copy
+`/usr/share/doc/embr/examples/embr-tray-autostart.desktop` to `~/.config/autostart/`. On Windows and macOS there is no tray and,
+with the window closed, no notification. **Back up your keys** (`embrctl accounts export`): a forgotten vault
 password cannot be recovered.
 
 ## Packages (Milestone 6)

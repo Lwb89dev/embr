@@ -15,7 +15,7 @@
 
 ## Direct dependencies
 <!-- BEGIN GENERATED -->
-Graph: **533 packages** in total (including build/dev/platform-specific ones), 28 direct external dependencies, 11 workspace crates.
+Graph: **539 packages** in total (including build/dev/platform-specific ones), 29 direct external dependencies, 11 workspace crates.
 
 | Dependency | Version | Licence | Used by | Why |
 |---|---|---|---|---|
@@ -27,6 +27,7 @@ Graph: **533 packages** in total (including build/dev/platform-specific ones), 2
 | `futures-util` | 0.3.34 | MIT OR Apache-2.0 | `embr-nip46`, `embrd` | async helpers for the relay client |
 | `getrandom` | 0.3.4 | MIT OR Apache-2.0 | `embr-core`, `embr-ipc`, `embr-nip46`, `embr-vault`, `embrd` | operating-system randomness (nonces, salts) |
 | `hex` | 0.4.3 | MIT OR Apache-2.0 | `embr-core`, `embr-crypto`, `embr-ipc`, `embr-nip46`, `embr-vault`, `embrd` | hex encoding of keys and ids |
+| `ksni` | 0.3.7 | Unlicense | `embr-desktop` | system tray icon (StatusNotifierItem over D-Bus), Linux only, `embr --tray` |
 | `nostr` | 0.45.7 | MIT | `embr-crypto`, `embr-nip46` | Nostr events, keys, NIP-01/04/06/19/44/49 (rust-nostr; all signing and NIP crypto) |
 | `notify-rust` | 4.17.0 | MIT/Apache-2.0 | `embr-desktop` | desktop notifications (metadata only) |
 | `qrcode` | 0.14.1 | MIT OR Apache-2.0 | `embr-desktop`, `embrctl` | QR code of a `bunker://` link |
@@ -54,7 +55,7 @@ Distinct crates each binary pulls in at run time (`cargo tree -p X -e normal`, c
 |---|---|
 | `embrctl` | 124 |
 | `embrd` | 157 |
-| `embr-desktop` | 307 |
+| `embr-desktop` | 314 |
 <!-- END GENERATED -->
 
 Regenerate with `scripts/dep_report.py` (needs only Python 3 and cargo).

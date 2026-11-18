@@ -25,6 +25,12 @@ notify-rust = { version = "4", default-features = false, features = ["z"] }
 qrcode = { version = "0.14", default-features = false }
 serde_json.workspace = true
 
+# System tray (StatusNotifierItem over D-Bus, the protocol KDE, Waybar, quickshell and GNOME's AppIndicator
+# extension speak). Linux only; Windows and macOS have no tray yet. `async-io` is the backend zbus already
+# uses for AccessKit, so this adds ksni itself and little else.
+[target.'cfg(target_os = "linux")'.dependencies]
+ksni = { version = "0.3", default-features = false, features = ["async-io", "blocking"] }
+
 [dev-dependencies]
 embrd = { path = "../embrd", version = "0.0.1" }
 embr-crypto.workspace = true
@@ -60,6 +66,7 @@ assets = [
     ["../../packaging/systemd/embrd.service", "usr/lib/systemd/user/", "644"],
     ["../../packaging/systemd/embrd-remote.conf", "usr/share/doc/embr/examples/", "644"],
     ["../../packaging/linux/embr.desktop", "usr/share/applications/", "644"],
+    ["../../packaging/linux/embr-tray-autostart.desktop", "usr/share/doc/embr/examples/", "644"],
     ["../../packaging/linux/embr.metainfo.xml", "usr/share/metainfo/", "644"],
     ["../../packaging/icons/hicolor/16x16/apps/embr.png", "usr/share/icons/hicolor/16x16/apps/", "644"],
     ["../../packaging/icons/hicolor/24x24/apps/embr.png", "usr/share/icons/hicolor/24x24/apps/", "644"],
@@ -86,6 +93,7 @@ assets = [
     { source = "../../packaging/systemd/embrd.service", dest = "/usr/lib/systemd/user/embrd.service", mode = "644" },
     { source = "../../packaging/systemd/embrd-remote.conf", dest = "/usr/share/doc/embr/examples/embrd-remote.conf", mode = "644", doc = true },
     { source = "../../packaging/linux/embr.desktop", dest = "/usr/share/applications/embr.desktop", mode = "644" },
+    { source = "../../packaging/linux/embr-tray-autostart.desktop", dest = "/usr/share/doc/embr/examples/embr-tray-autostart.desktop", mode = "644", doc = true },
     { source = "../../packaging/linux/embr.metainfo.xml", dest = "/usr/share/metainfo/embr.metainfo.xml", mode = "644" },
     { source = "../../packaging/icons/hicolor/16x16/apps/embr.png", dest = "/usr/share/icons/hicolor/16x16/apps/embr.png", mode = "644" },
     { source = "../../packaging/icons/hicolor/24x24/apps/embr.png", dest = "/usr/share/icons/hicolor/24x24/apps/embr.png", mode = "644" },

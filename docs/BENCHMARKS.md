@@ -50,10 +50,11 @@ includes that polling.
 
 | Measurement | Result |
 |---|---|
-| Size: `embr` / `embrd` / `embrctl` | 10.9 MiB / 4.9 MiB / 1.1 MiB |
+| Size: `embr` / `embrd` / `embrctl` | 11.7 MiB (10.9 before the tray) / 4.9 MiB / 1.1 MiB |
 | `embr` window mapped after process start | 166, 173, 166 ms |
 | `embr` resident memory (VmRSS) | 125.7, 125.4, 125.4 MiB; peak equal; 14 threads |
 | `embrd` resident memory, idle, no vault | 4.5 MiB |
+| `embr --tray` resident memory (no window), 4 s after start, daemon without vault | 8.0, 7.8, 8.0 MiB; 5 threads |
 
 Reading these: the GUI's RSS includes the OpenGL driver's mapped pages (partly shared with other programs) and
 egui's glyph atlas; I did not separate shared from private memory (`smem` was not used). The daemon number was

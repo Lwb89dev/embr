@@ -6,10 +6,11 @@ Your private key stays in one small, encrypted, local process. Apps ask it to si
 
 > **Status: pre-alpha.** Cryptographic core, encrypted vault, permission engine, signer daemon with
 > authenticated local IPC, NIP-46 remote signing (off by default), client SDK, a terminal control/approval
-> CLI and a desktop GUI (egui) are built and tested on Linux; an Arch package exists (daemon and CLI; it
-> does not ship the GUI yet). The Windows transport (named pipes) is implemented and its CI job is green,
-> but it has not been run by a person on a real Windows machine; macOS has not been run at all. There is
-> **no system tray, and no `.deb`/`.rpm`/macOS/Windows installer yet.**
+> CLI and a desktop GUI (egui) with a Linux tray helper are built and tested on Linux. Packages exist for Arch,
+> `.deb`, `.rpm` and a Windows installer, each built and install-tested on GitHub's runners (a macOS `.dmg` is
+> written but had not run when this was written). The Windows transport (named pipes) is implemented and its CI
+> job is green, but nobody has run it on a real Windows machine; macOS has not been run at all. **Nothing is
+> signed or published, and there is no tray on Windows or macOS.**
 > It has **not been audited** — do not trust it with a key you cannot afford to lose.
 > Read [`docs/SECURITY.md`](docs/SECURITY.md) and [`docs/THREAT_MODEL.md`](docs/THREAT_MODEL.md).
 
@@ -34,7 +35,7 @@ off unless you turn it on.
 | 1 | Research, threat model, architecture, workspace | **done** (this repo) |
 | 2 | Crypto core, encrypted vault, accounts, import/export, tests | **done** — official vectors, interop with `nostr-tools` |
 | 3 | Daemon, authenticated local IPC, policy engine, SDK, example client, CLI | **done on Linux**; Windows named pipes implemented (CI green, not hand-tested); macOS unverified |
-| 4 | Desktop GUI, approvals, tray, notifications | **done on Linux, except the tray** — egui app (`embr`): unlock, accounts, approvals, apps and permissions, remote signing, activity, notifications. **No tray yet**: with the window closed nothing notifies you, requests simply wait (and expire); the daemon keeps working. See [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) ADR-3 |
+| 4 | Desktop GUI, approvals, tray, notifications | **done on Linux** — egui app (`embr`): unlock, accounts, approvals, apps and permissions, remote signing, activity, notifications; plus `embr --tray`, a small resident tray icon (Linux only) that shows how many requests wait and notifies you while the window is closed. **No tray on Windows or macOS**: there, with the window closed, nothing notifies you and requests wait (and expire). See [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) ADR-3 |
 | 5 | NIP-46 remote signing | **done on Linux** — `bunker://` + `nostrconnect://`, interop with nostr-tools ([`docs/NIP46.md`](docs/NIP46.md)) |
 | 6 | `.deb`, `.rpm`, Arch `PKGBUILD`, Windows installer, macOS `.dmg` (no AppImage) | **built and install-tested on CI** for `.deb` (Ubuntu 22.04/24.04/latest, Debian 12), `.rpm` (Fedora), Windows installer; Arch package builds; **macOS `.dmg` not yet run**; **nothing is signed or published** ([`docs/PACKAGING.md`](docs/PACKAGING.md)) |
 | 7 | Fuzzing, benchmarks, dependency review, release docs | **done as far as it goes**: 8 fuzz targets (minutes each, 1 bug found), measured benchmarks, a [dependency review](docs/DEPENDENCIES.md) (not a source audit), release docs. **No independent audit, no long fuzzing campaign, no signed release** |

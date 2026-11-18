@@ -47,6 +47,8 @@ exceptions = [
     # Boost Software License (MIT-like), Windows-only clipboard support in the GUI.
     { name = "clipboard-win", allow = ["BSL-1.0"] },
     { name = "error-code", allow = ["BSL-1.0"] },
+    # Public-domain dedication (the StatusNotifierItem/tray implementation, Linux GUI only).
+    { name = "ksni", allow = ["Unlicense"] },
 ]
 
 [bans]

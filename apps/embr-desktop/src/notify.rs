@@ -44,6 +44,20 @@ pub fn approval_needed(client: &str, operation: Option<&str>, kind: Option<u16>)
     });
 }
 
+/// "N requests are waiting." — sent by the tray helper, which knows only a count.
+#[cfg_attr(not(target_os = "linux"), allow(dead_code))]
+pub fn pending_waiting(pending: usize) {
+    let body = crate::tray::notification_body(pending);
+    std::thread::spawn(move || {
+        let _ = notify_rust::Notification::new()
+            .appname("Embr")
+            .summary("Approval needed")
+            .body(&body)
+            .icon("dialog-password")
+            .show();
+    });
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

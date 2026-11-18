@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=Embr tray icon
+Comment=Show a tray icon and announce requests that are waiting for your approval
+Exec=embr --tray
+Icon=embr
+Terminal=false
+NoDisplay=true
+X-GNOME-Autostart-enabled=true

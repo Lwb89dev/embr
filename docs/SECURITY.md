@@ -102,6 +102,7 @@ The GUI is a thin client of the control channel: it holds no key, stores nothing
 | Drawing a screen sends no command to the daemon without a user action (clicks themselves are not simulated) | `ui::tests::every_screen_renders_and_drawing_alone_sends_nothing` |
 | Every "remember" choice the UI offers is one the policy engine accepts (direct-message kinds: once/session only; any-kind: never permanent; unscoped decrypt: at most an hour) — a UX guarantee, the engine stays the authority | `ui::tests::every_choice_the_ui_offers_is_accepted_by_the_policy_engine` |
 | Notifications carry the sanitised app name and the operation only; markup characters in the (untrusted) name are escaped on freedesktop servers | `notify::tests::*` |
+| The tray helper sees only the vault state and a count of waiting requests from the unauthenticated `status`, notices a request arriving, and survives the daemon disappearing | `tray::tests::*` (incl. one against a real daemon) |
 
 The GUI process also drops core dumps (`RLIMIT_CORE=0`; `NoNewPrivs` read back from `/proc` on Linux) and
 calls the same `PR_SET_DUMPABLE=0` code as the daemon; I could not confirm non-dumpability from outside the
@@ -114,7 +115,14 @@ process, only that the call reported success.
 * **No anti-spoof word** (the threat model proposed one): the GUI cannot prove to the user that a prompt is
   genuine, and synthetic input on X11 can click "Approve". Wayland compositors block that by default.
 * The GUI does not offer reveal-`nsec` (only the control API does).
-* **No system tray.** With the window closed, requests are not announced and wait until they expire.
+* **The tray (`embr --tray`) exists on Linux only.** On Windows and macOS, with the window closed, requests are not
+  announced and wait until they expire. The Linux helper holds no key, no password and no control token: it
+  polls the daemon's unauthenticated `status` every 3 s (vault state and a *count* of waiting requests, never who
+  asks or what for), shows that in the tooltip and raises a notification when the count rises while no window is
+  open. Any process of the same user that can reach the control socket can read the same status, so the tray
+  discloses nothing new. Tested against a real daemon and, by hand, on one desktop (quickshell: the icon
+  registered with the StatusNotifierWatcher, its state and tooltip changed, one notification was sent); I have
+  **not** seen the icon drawn, because that bar collapses tray icons behind a chevron I could not click.
 * **Accessibility (AccessKit) is compiled in but has not been tested with a screen reader.**
 * Desktop notifications are shown by the desktop's notification server, which can log them and show them on a
   locked screen; they contain only the app's name and the operation.

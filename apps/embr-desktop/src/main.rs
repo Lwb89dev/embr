@@ -11,6 +11,7 @@
 mod backend;
 mod demo;
 mod notify;
+mod tray;
 mod ui;
 
 use std::collections::HashSet;
@@ -90,6 +91,7 @@ impl eframe::App for EmbrApp {
 fn main() -> eframe::Result {
     let mut endpoint = None;
     let mut demo: Option<ui::Screen> = None;
+    let mut tray_mode = false;
     let mut args = std::env::args().skip(1);
     while let Some(a) = args.next() {
         match a.as_str() {
@@ -105,17 +107,22 @@ fn main() -> eframe::Result {
                     _ => ui::Screen::Dashboard,
                 });
             }
+            "--tray" => tray_mode = true,
             "--version" | "-V" => {
                 eprintln!("embr {}", env!("CARGO_PKG_VERSION"));
                 return Ok(());
             }
             other => {
                 eprintln!(
-                    "embr: unknown argument {other:?}\nusage: embr [--control-socket PATH] [--demo [screen]]"
+                    "embr: unknown argument {other:?}\nusage: embr [--control-socket PATH] [--demo [screen]] [--tray]"
                 );
                 std::process::exit(2);
             }
         }
+    }
+    if tray_mode {
+        // The tray helper has no window and handles no secret: it needs none of the setup below.
+        std::process::exit(tray::run(endpoint));
     }
     // This process handles the vault password and imported keys while they are typed, so it gets the
     // same protections as the daemon (no core dumps, not readable through ptrace). It must happen
@@ -123,6 +130,23 @@ fn main() -> eframe::Result {
     for (what, why) in embr_platform::harden::harden_process().failed {
         eprintln!("embr: hardening {what} failed: {why}");
     }
+    // One window per user (the tray's "Open Embr" can then never pile windows up). Not applied to --demo or to
+    // a custom --control-socket, where several windows are legitimate. If the lock cannot be taken for any
+    // other reason the window still opens.
+    let _single = if demo.is_none() && endpoint.is_none() {
+        match tray::lock_path("embr-gui.lock")
+            .map(|p| embr_platform::instance::InstanceLock::acquire(&p))
+        {
+            Some(Ok(Some(lock))) => Some(lock),
+            Some(Ok(None)) => {
+                eprintln!("embr: a window is already open");
+                return Ok(());
+            }
+            _ => None,
+        }
+    } else {
+        None
+    };
     let icon = eframe::icon_data::from_png_bytes(include_bytes!("../assets/icon-256.png")).ok();
     let mut viewport = egui::ViewportBuilder::default()
         .with_title("Embr")
