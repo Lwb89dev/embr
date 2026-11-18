@@ -25,18 +25,18 @@ There is no `.desktop` file or tray icon yet, and no package ships the GUI (Mile
 closed there are no notifications. **Back up your keys** (`embrctl accounts export`): a forgotten vault
 password cannot be recovered.
 
-## Planned packages (Milestone 6)
+## Packages (Milestone 6)
 | Platform | Format | Status |
 |---|---|---|
-| Debian / Ubuntu / Mint / Pop!_OS | `.deb` | not started |
-| Fedora / openSUSE | `.rpm` (each tested on its own distro) | not started |
-| Arch / Omarchy / EndeavourOS / Manjaro | `PKGBUILD` (`embr-git`) | **exists**, build tested locally (see below); not on the AUR yet |
-| macOS (Apple Silicon, Intel) | `.app` + `.dmg`, signing/notarisation workflow | not started |
-| Windows 10/11 x64 | per-user installer (MSI or NSIS) | not started |
+| Debian / Ubuntu / Mint / Pop!_OS | `.deb` | built by the release workflow and installed with `apt` on an Ubuntu runner (see `PACKAGING.md` for the result); no release is published |
+| Fedora / openSUSE | `.rpm` | built and installed with `dnf` in a Fedora container by the workflow; **openSUSE not covered** (library package names differ) |
+| Arch / Omarchy / EndeavourOS / Manjaro | `PKGBUILD` (`embr-git`) | builds and tests locally and in CI; ships the daemon, CLI **and** the GUI; not on the AUR |
+| macOS (Apple Silicon + Intel) | `.app` in a universal `.dmg` | built and mounted on a macOS runner by the workflow; **ad-hoc signed only, not notarised** |
+| Windows 10/11 x64 | per-user NSIS installer | built, silently installed and uninstalled on a Windows runner; **unsigned** (SmartScreen warns) |
 | **AppImage** | **never** — explicitly excluded | — |
 
-Targets will be labelled *supported* only after a test on a real installation; cross-compiled-only
-targets will be listed as untested.
+Targets are called *supported* only after a person tested a real installation: none is yet. The pipeline
+proves "builds, installs, starts and answers" on a clean CI image, not "works on your desktop".
 
 ## Arch / Omarchy (from the repository's PKGBUILD)
 ```bash
@@ -45,8 +45,8 @@ makepkg -si                                  # builds, runs the test-suite, inst
 systemctl --user enable --now embrd.service
 embrctl init && embrctl accounts add main && embrctl watch
 ```
-The package installs only `/usr/bin/embrd`, `/usr/bin/embrctl`, `/usr/lib/systemd/user/embrd.service`,
-the licence and the docs. It never touches `~/.local/share/embr` (your vault) — not on upgrade, not on removal.
+The package installs `/usr/bin/embrd`, `/usr/bin/embrctl`, `/usr/bin/embr` (the GUI) with its `.desktop` file,
+icons and AppStream metainfo, `/usr/lib/systemd/user/embrd.service`, the licence and the docs. It never touches `~/.local/share/embr` (your vault) — not on upgrade, not on removal.
 
 **Verified (2026-11-17, Omarchy):** `makepkg -f --nodeps` against a local clone built the package, ran the
 whole test-suite in `check()` (152 tests, 0 failed) and produced a 2.5 MiB `embr-git-…-x86_64.pkg.tar.zst`

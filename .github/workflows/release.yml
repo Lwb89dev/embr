@@ -36,7 +36,10 @@ jobs:
 
   linux-packages:
     needs: version
-    runs-on: ubuntu-latest
+    # Built on the OLDEST supported base on purpose: a binary links against the glibc of the machine that
+    # built it and runs on that glibc or newer. (Built on the newest Ubuntu, the package would install on
+    # 22.04/24.04 and Debian 12 and then fail to start.)
+    runs-on: ubuntu-22.04
     timeout-minutes: 60
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
@@ -54,7 +57,11 @@ jobs:
 
   verify-deb:
     needs: linux-packages
-    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-22.04, ubuntu-24.04, ubuntu-latest]
+    runs-on: ${{ matrix.os }}
     timeout-minutes: 20
     steps:
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
@@ -83,6 +90,24 @@ jobs:
         run: |
           sudo apt-get remove -y embr
           ! command -v embrd
+
+  verify-deb-debian:
+    needs: linux-packages
+    runs-on: ubuntu-latest
+    container: debian:12
+    timeout-minutes: 20
+    steps:
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with: { name: linux-packages, path: dist }
+      - name: Install with apt on Debian 12 and run
+        run: |
+          apt-get update
+          apt-get install -y ./dist/embr_*.deb
+          embrd --version && embrctl --version && embr --version
+          d=$(mktemp -d); embrd --data-dir "$d/d" --runtime-dir "$d/r" & pid=$!
+          sleep 2
+          EMBR_CONTROL_SOCKET="$d/r/control.sock" embrctl status | tee /dev/stderr | grep -q "vault:.*Missing"
+          kill $pid
 
   verify-rpm:
     needs: linux-packages
@@ -122,7 +147,9 @@ jobs:
       - name: Build the installer
         shell: pwsh
         run: |
-          & "${env:ProgramFiles(x86)}\NSIS\makensis.exe" /V2 "/DVERSION=${{ needs.version.outputs.version }}" packaging\windows\embr.nsi
+          # Absolute script path: the script's `!cd "${__FILEDIR__}\..\.."` needs an absolute __FILEDIR__.
+          $nsi = Join-Path $PWD "packaging\windows\embr.nsi"
+          & "${env:ProgramFiles(x86)}\NSIS\makensis.exe" /V2 "/DVERSION=${{ needs.version.outputs.version }}" $nsi
           if ($LASTEXITCODE -ne 0) { throw "makensis failed ($LASTEXITCODE)" }
           New-Item -ItemType Directory dist | Out-Null
           Move-Item embr-*-setup.exe dist\
@@ -260,7 +287,7 @@ jobs:
         with: { name: sbom, path: dist/*, if-no-files-found: error }
 
   checksums:
-    needs: [version, linux-packages, verify-deb, verify-rpm, windows-installer, macos-dmg, sbom]
+    needs: [version, linux-packages, verify-deb, verify-deb-debian, verify-rpm, windows-installer, macos-dmg, sbom]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4

@@ -1,5 +1,6 @@
 ; Per-user installer for Embr (no administrator rights, no registry writes outside HKCU).
-; Build:  makensis /DVERSION=0.0.1 packaging\windows\embr.nsi   (run from the repository root)
+; Build:  makensis /DVERSION=0.0.1 <absolute path to>\packaging\windows\embr.nsi
+; (the path must be absolute: the `!cd` below derives the repository root from the script's own folder)
 ; Needs the release binaries in target\release (embr.exe, embrd.exe, embrctl.exe).
 ; Nothing is started at login and no service is installed: the app's "Start the daemon" button (or
 ; `embrd`) starts the daemon when you want it. Uninstalling never touches your vault.

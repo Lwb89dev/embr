@@ -61,6 +61,15 @@ caught by tests, one (AAD over KDF fields) is redundant by design and was docume
 * NIP-46 `wss://` (TLS) is **not exercised** by any test (all use loopback `ws://`); real public relays are untested.
 * The e2e suite uses real time for expiry/auto-lock (≈2 s waits); it passed 3 consecutive runs on
   2026-11-17 on Linux, but timing tests can flake on a heavily loaded CI machine.
+* **One unexplained failure.** During a local `makepkg` build (while I was also compiling a release build with
+  LTO on the same machine) `nip46::nostrconnect_import_contacts_client_relays_only_after_approval` timed out
+  waiting 20 s for the daemon's `connect` response. It did not fail again in 25 isolated reruns, 15 reruns with
+  32 busy loops saturating the CPU, 24 reruns of the whole `nip46` binary (idle and loaded), nor in the
+  following clean `makepkg` (33 test binaries, 0 failures). Treated as load-induced, not proven so.
+* **macOS tests hung once.** In GitHub's `macos-latest` job `cargo test` ran for hours without finishing
+  (runs `eabb8b4`, `a6d9421`; the macOS job had been queued ~5 h before that). I have no macOS machine and no
+  log of the hang, so the cause is unknown. CI now bounds every test job (30 min) and runs the macOS tests
+  sequentially and unbuffered so that a repeat names the test.
 * Windows named pipes are implemented with a user-only DACL; the `windows-latest` CI job passed on commit
   `a6d9421`, but I have not looked at the per-test output and nobody has run it on a real Windows machine.
   macOS CI had not finished when this was written.
