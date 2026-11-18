@@ -51,8 +51,11 @@ caught by tests, one (AAD over KDF fields) is redundant by design and was docume
 
 ## Not yet covered (honest list)
 * **Per platform, on GitHub's runners (not on machines I own):** Linux runs everything; **macOS** (Apple
-  Silicon runner) ran the whole workspace on commit `ffc61d9`: **204 tests, 0 failed**, including the daemon
-  e2e, NIP-46 and CLI suites; **Windows** ran **163 tests, 0 failed** on `e452dfc`. On Windows the daemon e2e,
+  Silicon runner) ran the whole workspace on commit `a1007f3`: **204 tests, 0 failed**, including the daemon
+  e2e, NIP-46 and CLI suites; **Windows** ran **163 tests, 0 failed** on `71e4e78`. (Commit hashes in this file
+  are the ones after the history rewrite of 2026-11-18, which only removed an attribution line from three commit
+  messages: every tree is byte-identical. GitHub's Actions page lists these two runs under the earlier hashes
+  `ffc61d9` and `e452dfc`.) On Windows the daemon e2e,
   NIP-46 daemon and CLI suites are Unix-only (they use Unix sockets), so the Windows daemon is covered by
   `windows_smoke.rs` only: two tests over real named pipes (pairing, signing and locking; a squatted pipe name
   stops the daemon). Unix permission tests (`0600`/`0700`) are `cfg(unix)`. The NIP-46 interop test against
@@ -83,7 +86,7 @@ caught by tests, one (AAD over KDF fields) is redundant by design and was docume
   regression tests that fail on the old code (`finished_connections_release_their_slot`, and the hostile-IPC
   test now requires a real close within 3 s); the e2e suite now takes 2.6 s. Raw test sockets also got a write
   timeout, the control client a read timeout, and CI bounds every test job. **Confirmed on macOS** (job on
-  `ffc61d9`, 8 minutes): all 204 tests pass and the hostile-IPC test, which hung for six hours before, takes
+  `a1007f3`, 8 minutes): all 204 tests pass and the hostile-IPC test, which hung for six hours before, takes
   148 ms.
 * Nobody has run the Windows daemon on a real Windows machine, and the user-only DACL on the pipes is checked
   by the two smoke tests above only (not by an attempt to connect as another user).

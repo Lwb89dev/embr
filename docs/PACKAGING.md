@@ -39,14 +39,16 @@ run the binaries inside the `.dmg` on macOS. Each of those jobs also starts the 
 its status. It then writes CycloneDX SBOMs and `SHA256SUMS`; a tag run creates a **draft** pre-release with
 provenance attestations (never published automatically). 
 
-**Results of the run on commit `b6f3bfe` (2026-11-18, GitHub-hosted runners):**
+**Results of the run on commit `176e270` (2026-11-18, GitHub-hosted runners; GitHub's Actions page lists it
+under the pre-rewrite hash `b6f3bfe` — the history was rewritten that day only to remove an attribution line
+from three commit messages, every tree is byte-identical):**
 | Job | Result | What it proves — and what it does not |
 |---|---|---|
 | `.deb` on Ubuntu 22.04, 24.04, latest, and Debian 12 | passed | `apt install ./embr_*.deb` resolved the declared dependencies, `embrd`/`embrctl`/`embr --version` ran, the `.desktop` file validated, every library the GUI `dlopen`s exists, the daemon started and `embrctl status` answered, removal worked. Does **not** prove the GUI window opens (no display on the runner). |
 | `.rpm` on Fedora (container) | passed | same checks with `dnf`; openSUSE is **not** covered |
 | Windows installer (`embr-0.0.1-setup.exe`, 5.1 MB) | passed | silent install, installed `embrd`/`embrctl` run, the installed daemon answers over its named pipe, shortcut and uninstall entry exist, silent uninstall removes files and registry key. Unsigned. Does **not** prove the GUI window opens, nor behaviour on Windows 10. |
 | CycloneDX SBOMs, version check | passed | one SBOM per binary (`embrd`, `embrctl`, `embr-desktop`) |
-| macOS `.dmg` (universal, `Embr-0.0.1-macos.dmg`) | passed (run on commit `9cdab2b`, the first macOS job GitHub gave a slot to) | both architectures built and merged with `lipo` (`x86_64 arm64`), `Info.plist` valid, ad-hoc signature verified, the `.dmg` mounted, `embrd`/`embrctl`/`embr --version` run from inside it, and the daemon started on macOS and answered `vault: Missing`. Ad-hoc signed only, **not notarised** (Gatekeeper will warn); does **not** prove the window opens, nor behaviour on Intel hardware or older macOS (the runner is Apple Silicon) |
+| macOS `.dmg` (universal, `Embr-0.0.1-macos.dmg`) | passed (run on commit `f1218c6`, pre-rewrite hash `9cdab2b`, the first macOS job GitHub gave a slot to) | both architectures built and merged with `lipo` (`x86_64 arm64`), `Info.plist` valid, ad-hoc signature verified, the `.dmg` mounted, `embrd`/`embrctl`/`embr --version` run from inside it, and the daemon started on macOS and answered `vault: Missing`. Ad-hoc signed only, **not notarised** (Gatekeeper will warn); does **not** prove the window opens, nor behaviour on Intel hardware or older macOS (the runner is Apple Silicon) |
 
 Two things found only by running it on CI: (1) the first Windows run failed because NSIS was given a relative
 script path and its `!cd` left the repository; (2) the first Linux run built the packages on the newest
