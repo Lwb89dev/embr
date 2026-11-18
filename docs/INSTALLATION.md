@@ -1,6 +1,7 @@
 # Installation
 
-> **No installable package exists yet** (the Arch `PKGBUILD` installs the daemon and CLI only). Build from source (below).
+> **Nothing is published yet** (no GitHub release, no AUR upload). Packages are built and install-tested by CI
+> (table below) and can be built locally; the Arch package below is the one tested on a real machine first.
 
 ## From source (developers)
 Linux/macOS/Windows with `rustup` (the pinned toolchain installs itself):
@@ -54,7 +55,7 @@ icons and AppStream metainfo, `/usr/lib/systemd/user/embrd.service`, the licence
 whole test-suite in `check()` (152 tests, 0 failed) and produced a 2.5 MiB `embr-git-…-x86_64.pkg.tar.zst`
 containing exactly the files listed above; the extracted `embrd`/`embrctl` run. `--nodeps` was needed only
 because this machine gets `cargo` from rustup rather than pacman, so the `makedepends` check itself was not
-exercised here (CI builds it in a clean `archlinux` container with the real `rust` package — that job has not
-run yet). Found by this test: without `options=('!lto')` the link fails with undefined `rustsecp256k1_*`
+exercised here (CI builds it in a clean `archlinux` container with the real `rust` package with `makepkg -s`;
+that job is green). Found by this test: without `options=('!lto')` the link fails with undefined `rustsecp256k1_*`
 symbols (makepkg's `-flto` CFLAGS vs the C library built by the `cc` crate). Not tested: installation with
 `pacman -U` (needs root), the `.install` hooks, `systemctl --user enable` from the installed unit, aarch64.

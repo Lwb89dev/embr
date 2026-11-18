@@ -9,3 +9,6 @@
 
 # Generated SBOMs (cargo cyclonedx); produced by the release workflow, not committed
 *.cdx.json
+
+# Packages and installers built locally (makepkg, build_dmg.sh output goes here too)
+/dist
